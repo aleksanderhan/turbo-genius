@@ -11,10 +11,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip, setuptools, and wheel
-RUN pip3 install --upgrade pip setuptools wheel
+RUN pip install --upgrade pip setuptools wheel
 
 # Install necessary Python packages first
-RUN pip3 install packaging
+RUN pip install packaging, torch
 
 COPY ./requirements.txt ./
 RUN pip install -r requirements.txt
