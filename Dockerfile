@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install FastAPI and Uvicorn
+COPY ./requirements.txt ./
 RUN pip install -r requirements.txt
 
 # Copy the application code
