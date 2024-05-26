@@ -14,9 +14,9 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade pip setuptools wheel
 
 # Install necessary Python packages first
-RUN pip install packaging \
-                torch \
-                transformers \
+RUN pip install packaging
+RUN pip install torch
+RUN pip install transformers \
                 datasets \
                 peft \
                 trl \
