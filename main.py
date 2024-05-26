@@ -25,7 +25,7 @@ class AsyncTextStreamer:
                 break
             yield token
 
-    def __call__(self, tokens, scores):
+    def put(self, tokens):
         text = self.tokenizer.decode(tokens, skip_special_tokens=True)
         asyncio.create_task(self.queue.put(text))
     
