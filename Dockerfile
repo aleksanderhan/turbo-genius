@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade pip setuptools wheel
 
 # Install necessary Python packages first
-RUN pip install packaging, torch
+RUN pip install packaging torch
 
 COPY ./requirements.txt ./
 RUN pip install -r requirements.txt
