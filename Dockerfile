@@ -4,10 +4,14 @@ FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 # Set the working directory
 WORKDIR /app
 
+# Upgrade ubuntu
+RUN apt-get update && apt-get upgrade -y
+
 # Install Python and necessary system packages
 RUN apt-get update && apt-get install -y \
     python3.10 \
     python3-pip \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip, setuptools, and wheel
