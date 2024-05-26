@@ -31,6 +31,7 @@ RUN pip install transformers \
                 uvicorn
 RUN pip install -U "huggingface_hub[cli]"
 
+
 # Copy the application code
 COPY . /app
 

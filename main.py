@@ -1,6 +1,7 @@
 import torch
 import asyncio
 import flash_attn
+import uvicorn
 from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse
 
@@ -62,3 +63,8 @@ async def generate_response(prompt: str):
 @app.get("/stream")
 async def stream(prompt: str = Query(...)):
     return StreamingResponse(generate_response(prompt), media_type="text/plain")
+
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000) 
