@@ -5,6 +5,7 @@ peft
 trl
 accelerate
 bitsandbytes
+packaging
 flash-attn
 fastapi
 uvicorn
