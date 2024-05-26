@@ -1,5 +1,5 @@
 # Use the NVIDIA base image with CUDA
-FROM nvidia/cuda:12.0-base-ubuntu22.04
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
 # Set the working directory
 WORKDIR /app
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install FastAPI and Uvicorn
-RUN pip3 install -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Copy the application code
 COPY . /app
