@@ -38,4 +38,5 @@ COPY . /app
 EXPOSE 8000
 
 # Command to run the app
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "huggingface-cli login --token $HUGGINGFACE_TOKEN && uvicorn main:app --host 0.0.0.0 --port 8000"]
+
