@@ -29,6 +29,7 @@ RUN pip install transformers \
                 flash-attn \
                 fastapi \
                 uvicorn
+RUN pip install -U "huggingface_hub[cli]"
 
 # Copy the application code
 COPY . /app
