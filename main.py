@@ -27,7 +27,7 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 tokenizer = AutoTokenizer.from_pretrained(model_path)
-streamer = TextIteratorStreamer(tokenizer)
+streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
 
 terminators = [
     tokenizer.eos_token_id,
@@ -38,9 +38,18 @@ async def generate_response(prompt: str):
     torch.cuda.empty_cache()
     gc.collect()
     inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-    await model.generate(**inputs, streamer=streamer, eos_token_id=terminators, do_sample=True, temperature=0.6, top_p=0.9)
+    generation_kwargs = dict(
+        inputs=inputs,
+        streamer=streamer,
+        do_sample=True,
+        temperature=0.6,
+        top_p=0.9,
+    )
+
+    task = asyncio.create_task(model.generate(**generation_kwargs))
     async for token in streamer:
         yield token
+    await task
 
 @app.get("/stream")
 async def stream(prompt: str = Query(...)):
