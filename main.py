@@ -51,12 +51,15 @@ async def generate_token_by_token(prompt):
         yield next_token.item()
 
         # Update the input for the next iteration
-        inputs = torch.cat([inputs.input_ids, next_token.unsqueeze(0)], dim=1)
+        inputs = torch.cat([inputs.input_ids, next_token.squeeze(-1)], dim=1)
         past_key_values = outputs.past_key_values
 
 async def generate_response(prompt: str):
-    async for token in generate_token_by_token(prompt):
-        yield tokenizer.decode([token])
+    try:
+        async for token in generate_token_by_token(prompt):
+            yield tokenizer.decode([token])
+    except asyncio.CancelledError:
+        pass  # Handle client disconnect gracefully
 
 @app.get("/stream")
 async def stream(prompt: str = Query(...)):
