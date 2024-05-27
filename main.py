@@ -3,8 +3,7 @@ import flash_attn
 import uvicorn
 import gc
 import asyncio
-from fastapi import FastAPI, Query
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, WebSocket
 from threading import Thread
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextIteratorStreamer
@@ -64,23 +63,28 @@ async def generate_token_by_token(prompt):
 
         # Decode the token to string and yield
         decoded_token = tokenizer.decode(next_token.squeeze(), skip_special_tokens=True, clean_up_tokenization_spaces=True)
+        print(decoded_token)
         yield decoded_token
 
 
 async def generate_response(prompt: str):
     try:
         async for token in generate_token_by_token(prompt):
-            # Formatting for SSE
-            yield f"data: {token}\n\n"
+            yield token
     except asyncio.CancelledError:
-        # Optional: close message to signal the end of the stream
-        yield "event: close\ndata: stream closed\n\n"
         pass  # Handle client disconnect gracefully
 
 
-@app.get("/stream")
-async def stream(prompt: str = Query(...)):
-    return StreamingResponse(generate_response(prompt), media_type="text/event-stream")
+@app.websocket("/stream")
+async def stream(websocket: WebSocket, prompt: str):
+    await websocket.accept()  # Accept the WebSocket connection
+    try:
+        async for token in generate_token_by_token(prompt):
+            await websocket.send_text(token)  # Send each token as soon as it's generated
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        await websocket.close() 
 
 
 
