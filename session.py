@@ -16,7 +16,7 @@ class Session:
         return self.messages
     
     def truncate_messages(self):
-        self.messages = self.messages[0] + self.messages[3:]
+        self.messages = [self.messages[0]] + self.messages[3:]
     
 
 class SessionManager:

@@ -13,8 +13,8 @@ from peft import LoraConfig, get_peft_model
 from session import Session, SessionManager
 
 
-#model_path = "meta-llama/Meta-Llama-3-70B-Instruct"
-model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
+model_path = "meta-llama/Meta-Llama-3-70B-Instruct"
+#model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 app = FastAPI()
 

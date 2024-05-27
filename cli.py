@@ -28,8 +28,8 @@ async def stream_tokens(uri, prompt):
 
 async def interactive_client():
     # WebSocket server URI including the endpoint
-    session_response = requests.get("http://localhost:8000/session")
-    uri = f"ws://localhost:8000/stream/{session_response.json()}"
+    session_response = requests.get("http://192.168.1.13:8000/session")
+    uri = f"ws://192.168.1.13:8000/stream/{session_response.json()}"
 
     while True:
         prompt = input(">> ")
