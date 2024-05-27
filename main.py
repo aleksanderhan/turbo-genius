@@ -68,6 +68,7 @@ async def stream(websocket: WebSocket):
     prompt = await websocket.receive_text()
     try:
         async for token in generate_response(prompt):
+            print(token)
             await websocket.send_text(token)  # Send each token as soon as it's generated
     except Exception as e:
         print(f"Error: {e}")
@@ -77,4 +78,4 @@ async def stream(websocket: WebSocket):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="debug") 
+    uvicorn.run(app, host="0.0.0.0", port=8000)
