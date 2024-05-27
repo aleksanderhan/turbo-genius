@@ -26,7 +26,7 @@ class AsyncTextStreamer:
                 break
             yield token
 
-    async def put(self, token_id):
+    def put(self, token_id):
         print("put", token_id)
         token = self.tokenizer.batch_decode(token_id, skip_special_tokens=True)
         asyncio.create_task(self.queue.put(token))
