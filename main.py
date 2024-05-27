@@ -20,17 +20,17 @@ class AsyncTextStreamer:
 
     async def stream(self):
         while True:
-            text = await self.queue.get()
-            if text is None:
+            token = await self.queue.get()
+            if token is None:
                 break
-            yield text
+            yield token
 
-    def put(self, tokens):
-        print(tokens)
-        text = self.tokenizer.batch_decode(tokens, skip_special_tokens=True)
-        asyncio.create_task(self.queue.put(' '.join(text)))
+    async def put(self, token_id):
+        print("put", token_id)
+        token = self.tokenizer.batch_decode(token_id, skip_special_tokens=True)
+        asyncio.create_task(self.queue.put(token))
     
-    async def finish(self):
+    async def end(self):
         await self.queue.put(None)
 
 
@@ -57,8 +57,8 @@ terminators = [
 async def generate_response(prompt: str):
     inputs = tokenizer(prompt, return_tensors="pt")
     task = asyncio.create_task(model.generate(**inputs, streamer=streamer, eos_token_id=terminators, do_sample=True, temperature=0.6, top_p=0.9))
-    async for text in streamer.stream():
-        yield text
+    async for token in streamer.stream():
+        yield token
     await task
 
 @app.get("/stream")
