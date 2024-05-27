@@ -1,10 +1,10 @@
 import torch
-import asyncio
 import flash_attn
 import uvicorn
 import gc
 from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse
+from threading import Thread
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextIteratorStreamer
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
@@ -38,7 +38,18 @@ async def generate_response(prompt: str):
     torch.cuda.empty_cache()
     gc.collect()
     inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-    await model.generate(**inputs, streamer=streamer, do_sample=True, temperature=0.6, top_p=0.9)
+    generation_kwargs = {
+        "input_ids": inputs["input_ids"],
+        "attention_mask": inputs["attention_mask"],
+        "streamer": streamer,
+        "do_sample": True,
+        "temperature": 0.6,
+        "top_p": 0.9,
+    }
+
+    # Run the generation in a separate thread
+    thread = Thread(target=model.generate, kwargs=generation_kwargs)
+    thread.start()
     async for token in streamer:
         yield token
 
