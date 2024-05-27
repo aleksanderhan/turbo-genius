@@ -35,10 +35,10 @@ terminators = [
 ]
 
 
-async def stream_tokens(streamer, queue):
+async def stream_tokens(streamer):
     for token in streamer:
-        await queue.put(token)
-    await queue.put(None)  # Signal the end of streaming
+        yield token
+    yield None
 
 async def generate_response(prompt: str):
     torch.cuda.empty_cache()
@@ -54,19 +54,12 @@ async def generate_response(prompt: str):
         "top_p": 0.9,
     }
 
-    queue = asyncio.Queue()
-
     # Run the generation in a separate thread
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
 
     # Start streaming tokens
-    asyncio.create_task(stream_tokens(streamer, queue))
-
-    while True:
-        token = await queue.get()
-        if token is None:
-            break
+    async for token in stream_tokens(streamer):
         yield token
 
 @app.get("/stream")
