@@ -35,12 +35,31 @@ terminators = [
     tokenizer.convert_tokens_to_ids("<|eot_id|>"),
 ]
 
+async def stream_tokens(streamer):
+    for token in streamer:
+        yield token
+    yield None
+
 async def generate_response(prompt: str):
     torch.cuda.empty_cache()
     gc.collect()
     inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-    await model.generate(**inputs, streamer=streamer, do_sample=True, temperature=0.6, top_p=0.9)
-    async for token in streamer:
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
+    generation_kwargs = {
+        "input_ids": inputs["input_ids"],
+        "attention_mask": inputs["attention_mask"],
+        "streamer": streamer,
+        "do_sample": True,
+        "temperature": 0.6,
+        "top_p": 0.9,
+    }
+
+    # Run the generation in a separate thread
+    thread = Thread(target=model.generate, kwargs=generation_kwargs)
+    thread.start()
+
+    # Start streaming tokens
+    async for token in stream_tokens(streamer):
         yield token
 
 @app.websocket("/stream")
