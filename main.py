@@ -55,8 +55,8 @@ async def generate_token_by_token(prompt):
             print("Terminator found, stopping generation.")  # Debugging terminator condition
             break
 
-        # Reshape next_token from [1] to [1, 1] for concatenation
-        next_token = next_token.unsqueeze(-1)  # Ensure it is [1, 1]
+        # Correctly reshape next_token for concatenation
+        next_token = next_token.view(1, 1)  # Changing from [1] to [1, 1]
         print(f"Reshaped next_token for concatenation: {next_token} (shape: {next_token.shape})")
 
         # Concatenate the new token to the existing sequence
@@ -69,6 +69,7 @@ async def generate_token_by_token(prompt):
         decoded_token = tokenizer.decode(next_token.squeeze(), skip_special_tokens=True, clean_up_tokenization_spaces=True)
         print(f"Decoded token: {decoded_token}")  # Debugging decoded token
         yield decoded_token
+
 
 async def generate_response(prompt: str):
     try:
