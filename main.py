@@ -70,7 +70,7 @@ async def stream(websocket: WebSocket):
         async for token in generate_response(prompt):
             print(token)
             await websocket.send_text(token)  # Send each token as soon as it's generated
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.01)
     except Exception as e:
         print(f"Error: {e}")
     finally:
