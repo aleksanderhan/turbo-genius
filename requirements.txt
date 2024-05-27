@@ -1,0 +1,4 @@
+torch
+transformers
+flash_attn
+tensorrt

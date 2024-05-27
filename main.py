@@ -10,9 +10,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
 from peft import LoraConfig, get_peft_model
 
+from session import Session, SessionManager
 
-model_path = "meta-llama/Meta-Llama-3-70B-Instruct"
-assistant_model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
+
+#model_path = "meta-llama/Meta-Llama-3-70B-Instruct"
+model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 app = FastAPI()
 
@@ -27,15 +29,6 @@ config = AutoConfig.from_pretrained(model_path)
 
 model = AutoModelForCausalLM.from_pretrained(
     model_path,
-    device_map='auto',
-    config=config,
-    torch_dtype=torch.bfloat16,
-    quantization_config=bnb_config,
-    attn_implementation="flash_attention_2"
-)
-
-assistant_model = AutoModelForCausalLM.from_pretrained(
-    assistant_model_path,
     device_map='auto',
     config=config,
     torch_dtype=torch.bfloat16,
@@ -67,7 +60,6 @@ async def generate_response(prompt: str):
         "do_sample": True,
         "temperature": 0.6,
         "top_p": 0.9,
-        "assistant_model": assistant_model,
     }
 
     # Run the generation in a separate thread
@@ -80,24 +72,40 @@ async def generate_response(prompt: str):
 
     thread.join()
 
-@app.websocket("/stream")
-async def stream(websocket: WebSocket):
+@app.websocket("/stream/{session_id}")
+async def stream(websocket: WebSocket, session_id: int):
     await websocket.accept()
-    prompt = await websocket.receive_text()
+    message = await websocket.receive_text()
+    session = session_manager.get_session(session_id)
+    session.add_user_message(message)
+    prompt = tokenizer.apply_chat_template(
+        session.get_messages(),
+        add_generation_prompt=True,
+        return_tensors="pt",
+        tokenize=False,
+    )
+    completion = ""
     try:
         async for token in generate_response(prompt):
             if token is None:
                 print("\n")
                 break
+            completion += token
             print(token, end='', flush=True)
             await websocket.send_text(token)
             await asyncio.sleep(0.01)
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        await websocket.close() 
+        session.add_assistant_message(completion)
+        await websocket.close()
 
+@app.get("/session")
+async def get_session():
+    session = session_manager.get_new_session()
+    return session.session_id
 
 
 if __name__ == "__main__":
+    session_manager = SessionManager()
     uvicorn.run(app, host="0.0.0.0", port=8000)
