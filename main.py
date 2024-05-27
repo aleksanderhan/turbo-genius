@@ -74,7 +74,7 @@ async def generate_token_by_token(prompt):
 async def generate_response(prompt: str):
     try:
         async for token in generate_token_by_token(prompt):
-            yield tokenizer.decode([token])
+            yield token
     except asyncio.CancelledError:
         pass  # Handle client disconnect gracefully
 
