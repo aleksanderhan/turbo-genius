@@ -4,6 +4,7 @@ import uvicorn
 import gc
 import asyncio
 from fastapi import FastAPI, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
 from threading import Thread
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextIteratorStreamer
@@ -15,6 +16,13 @@ from peft import LoraConfig, get_peft_model
 model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Specify the correct origins in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 config = AutoConfig.from_pretrained(model_path)
 
