@@ -3,6 +3,7 @@ import flash_attn
 import uvicorn
 import gc
 import asyncio
+import argparse
 from fastapi import FastAPI, WebSocket
 from threading import Thread
 
@@ -13,10 +14,11 @@ from peft import LoraConfig, get_peft_model
 from session import Session, SessionManager
 
 
-model_path = "meta-llama/Meta-Llama-3-70B-Instruct"
-#model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
-
 app = FastAPI()
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--model', action='store', default="meta-llama/Meta-Llama-3-8B-Instruct")
+args = parser.parse_args()
 
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
@@ -25,25 +27,24 @@ bnb_config = BitsAndBytesConfig(
     bnb_4bit_compute_dtype=torch.bfloat16
 )
 
-config = AutoConfig.from_pretrained(model_path)
+config = AutoConfig.from_pretrained(args.model)
 
 model = AutoModelForCausalLM.from_pretrained(
-    model_path,
+    args.model,
     device_map='auto',
     config=config,
-    torch_dtype=torch.bfloat16,
     quantization_config=bnb_config,
     attn_implementation="flash_attention_2"
 )
 
-tokenizer = AutoTokenizer.from_pretrained(model_path)
+tokenizer = AutoTokenizer.from_pretrained(args.model)
 
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>"),
 ]
 
-async def stream_tokens(streamer):
+async def stream_tokens(streamer: TextIteratorStreamer):
     for token in streamer:
         yield token
     yield None
@@ -60,7 +61,7 @@ async def generate_response(prompt: str):
         "do_sample": True,
         "temperature": 0.6,
         "top_p": 0.9,
-        "max_length": 8192,
+        "max_length": config["max_position_embeddings"],
     }
 
     # Run the generation in a separate thread
@@ -80,7 +81,7 @@ def make_prompt(session: Session):
         return_tensors="pt",
         tokenize=True
     )
-    if inputs.shape[-1] > 7168:
+    if inputs.shape[-1] > int(config["max_position_embeddings"] * 0.9):
         session.truncate_messages()
         return make_prompt(session)
     else:

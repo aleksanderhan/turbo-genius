@@ -1,4 +1,15 @@
+packaging
 torch
 transformers
 flash_attn
 tensorrt
+datasets
+peft
+trl
+accelerate
+bitsandbytes
+flash-attn
+fastapi
+uvicorn
+tensorrt
+huggingface_hub
