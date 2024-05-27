@@ -10,7 +10,7 @@ async def stream_tokens(uri, prompt):
         try:
             while True:
                 token = await websocket.recv()
-                print(token, end='')
+                print(token, end='', flush=True)
         except websockets.exceptions.ConnectionClosed:
             print("\nConnection closed by server")
 
