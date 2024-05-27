@@ -60,6 +60,7 @@ async def generate_response(prompt: str):
         "do_sample": True,
         "temperature": 0.6,
         "top_p": 0.9,
+        "max_length": 8192,
     }
 
     # Run the generation in a separate thread
@@ -72,18 +73,31 @@ async def generate_response(prompt: str):
 
     thread.join()
 
+def make_prompt(session: Session):
+    inputs = tokenizer.apply_chat_template(
+        session.get_messages(),
+        add_generation_prompt=True,
+        return_tensors="pt",
+        tokenize=True
+    )
+    if inputs.shape[-1] > 7168:
+        session.truncate_messages()
+        return make_prompt(session)
+    else:
+        return tokenizer.apply_chat_template(
+            session.get_messages(),
+            add_generation_prompt=True,
+            tokenize=False
+        )
+
+
 @app.websocket("/stream/{session_id}")
 async def stream(websocket: WebSocket, session_id: int):
     await websocket.accept()
     message = await websocket.receive_text()
     session = session_manager.get_session(session_id)
     session.add_user_message(message)
-    prompt = tokenizer.apply_chat_template(
-        session.get_messages(),
-        add_generation_prompt=True,
-        return_tensors="pt",
-        tokenize=False,
-    )
+    prompt = make_prompt(session)
     completion = ""
     try:
         async for token in generate_response(prompt):
