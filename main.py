@@ -35,7 +35,6 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 tokenizer = AutoTokenizer.from_pretrained(model_path)
-streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
 
 terminators = [
     tokenizer.eos_token_id,
@@ -68,6 +67,8 @@ async def generate_response(prompt: str):
     # Start streaming tokens
     async for token in stream_tokens(streamer):
         yield token
+
+    thread.join()
 
 @app.websocket("/stream")
 async def stream(websocket: WebSocket):
