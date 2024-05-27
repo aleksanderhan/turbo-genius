@@ -4,7 +4,6 @@ import uvicorn
 import gc
 import asyncio
 from fastapi import FastAPI, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
 from threading import Thread
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextIteratorStreamer
@@ -77,6 +76,8 @@ async def stream(websocket: WebSocket):
     try:
         async for token in generate_response(prompt):
             print(token)
+            if token is None:
+                break
             await websocket.send_text(token)
             await asyncio.sleep(0.01)
     except Exception as e:
