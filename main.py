@@ -2,6 +2,7 @@ import torch
 import flash_attn
 import uvicorn
 import gc
+import asyncio
 from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse
 from threading import Thread
@@ -34,6 +35,12 @@ terminators = [
     tokenizer.convert_tokens_to_ids("<|eot_id|>"),
 ]
 
+
+async def stream_tokens(streamer, queue):
+    for token in streamer:
+        await queue.put(token)
+    await queue.put(None)  # Signal the end of streaming
+
 async def generate_response(prompt: str):
     torch.cuda.empty_cache()
     gc.collect()
@@ -47,17 +54,20 @@ async def generate_response(prompt: str):
         "top_p": 0.9,
     }
 
+    queue = asyncio.Queue()
+
     # Run the generation in a separate thread
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
-    
-    while thread.is_alive():
-        while not streamer.queue.empty():
-            yield streamer.queue.get()
-    
-    # Ensure remaining tokens are yielded after thread completes
-    while not streamer.queue.empty():
-        yield streamer.queue.get()
+
+    # Start streaming tokens
+    asyncio.create_task(stream_tokens(streamer, queue))
+
+    while True:
+        token = await queue.get()
+        if token is None:
+            break
+        yield token
 
 @app.get("/stream")
 async def stream(prompt: str = Query(...)):
