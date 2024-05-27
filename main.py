@@ -17,6 +17,13 @@ model_path = "meta-llama/Meta-Llama-3-70B-Instruct"
 
 app = FastAPI()
 
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_use_double_quant=True,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_compute_dtype=torch.bfloat16
+)
+
 config = AutoConfig.from_pretrained(model_path)
 
 model = AutoModelForCausalLM.from_pretrained(
@@ -24,6 +31,7 @@ model = AutoModelForCausalLM.from_pretrained(
     device_map='auto',
     config=config,
     torch_dtype=torch.bfloat16,
+    quantization_config=bnb_config,
     attn_implementation="flash_attention_2"
 )
 
