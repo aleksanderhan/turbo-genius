@@ -61,7 +61,7 @@ async def generate_response(prompt: str):
         "do_sample": True,
         "temperature": 0.6,
         "top_p": 0.9,
-        "max_length": config["max_position_embeddings"],
+        "max_length": config.max_position_embeddings,
     }
 
     # Run the generation in a separate thread
@@ -81,7 +81,7 @@ def make_prompt(session: Session):
         return_tensors="pt",
         tokenize=True
     )
-    if inputs.shape[-1] > int(config["max_position_embeddings"] * 0.9):
+    if inputs.shape[-1] > int(config.max_position_embeddings * 0.9):
         session.truncate_messages()
         return make_prompt(session)
     else:
