@@ -12,8 +12,8 @@ from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
 from peft import LoraConfig, get_peft_model
 
 
-#model_path = "meta-llama/Meta-Llama-3-70B-Instruct"
-model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
+model_path = "meta-llama/Meta-Llama-3-70B-Instruct"
+#model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 app = FastAPI()
 
@@ -68,8 +68,7 @@ async def stream(websocket: WebSocket):
     prompt = await websocket.receive_text()
     try:
         async for token in generate_response(prompt):
-            print(token)
-            await websocket.send_text(token)  # Send each token as soon as it's generated
+            await websocket.send_text(token)
             await asyncio.sleep(0.01)
     except Exception as e:
         print(f"Error: {e}")
