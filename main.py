@@ -84,8 +84,9 @@ async def generate_response(prompt: str):
 
 
 @app.websocket("/stream")
-async def stream(websocket: WebSocket, prompt: str):
-    await websocket.accept()  # Accept the WebSocket connection
+async def stream(websocket: WebSocket):
+    await websocket.accept()
+    prompt = await websocket.receive_text()
     try:
         async for token in generate_token_by_token(prompt):
             await websocket.send_text(token)  # Send each token as soon as it's generated
