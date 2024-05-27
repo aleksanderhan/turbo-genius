@@ -35,32 +35,28 @@ terminators = [
 ]
 
 
-async def stream_tokens(streamer):
-    for token in streamer:
-        yield token
-    yield None
+async def generate_token_by_token(prompt):
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    past_key_values = None
+
+    while True:
+        outputs = model(**inputs, past_key_values=past_key_values, return_dict=True)
+        next_token_logits = outputs.logits[:, -1, :]
+        # Sample or select the next token here
+        next_token = torch.multinomial(torch.nn.functional.softmax(next_token_logits, dim=-1), num_samples=1)
+        
+        if next_token in terminators:
+            break
+
+        yield next_token.item()
+
+        # Update the input for the next iteration
+        inputs = torch.cat([inputs.input_ids, next_token.unsqueeze(0)], dim=1)
+        past_key_values = outputs.past_key_values
 
 async def generate_response(prompt: str):
-    torch.cuda.empty_cache()
-    gc.collect()
-    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
-    generation_kwargs = {
-        "input_ids": inputs["input_ids"],
-        "attention_mask": inputs["attention_mask"],
-        "streamer": streamer,
-        "do_sample": True,
-        "temperature": 0.6,
-        "top_p": 0.9,
-    }
-
-    # Run the generation in a separate thread
-    thread = Thread(target=model.generate, kwargs=generation_kwargs)
-    thread.start()
-
-    # Start streaming tokens
-    async for token in stream_tokens(streamer):
-        yield token
+    async for token in generate_token_by_token(prompt):
+        yield tokenizer.decode([token])
 
 @app.get("/stream")
 async def stream(prompt: str = Query(...)):
