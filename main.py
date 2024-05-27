@@ -42,7 +42,8 @@ async def generate_token_by_token(prompt):
     while True:
         outputs = model(**inputs, past_key_values=past_key_values, return_dict=True)
         next_token_logits = outputs.logits[:, -1, :]
-        # Sample or select the next token here
+        
+        # Sample or select the next token
         next_token = torch.multinomial(torch.nn.functional.softmax(next_token_logits, dim=-1), num_samples=1)
         
         if next_token in terminators:
@@ -50,8 +51,8 @@ async def generate_token_by_token(prompt):
 
         yield next_token.item()
 
-        # Update the input for the next iteration
-        inputs = torch.cat([inputs.input_ids, next_token.squeeze(-1)], dim=1)
+        # Update the input for the next iteration with proper dimensions
+        inputs = {"input_ids": torch.cat([inputs['input_ids'], next_token.unsqueeze(0)], dim=-1)}
         past_key_values = outputs.past_key_values
 
 async def generate_response(prompt: str):
