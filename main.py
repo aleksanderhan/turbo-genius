@@ -38,14 +38,13 @@ async def generate_response(prompt: str):
     torch.cuda.empty_cache()
     gc.collect()
     inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-    task = asyncio.create_task(model.generate(**inputs, streamer=streamer, do_sample=True, temperature=0.6, top_p=0.9))
+    await model.generate(**inputs, streamer=streamer, do_sample=True, temperature=0.6, top_p=0.9)
     async for token in streamer:
         yield token
-    await task
 
 @app.get("/stream")
 async def stream(prompt: str = Query(...)):
-    return StreamingResponse(generate_response(prompt), media_type="text/plain")
+    return StreamingResponse(generate_response(prompt), media_type="text/event-stream")
 
 
 
