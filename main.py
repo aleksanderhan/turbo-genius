@@ -50,8 +50,14 @@ async def generate_response(prompt: str):
     # Run the generation in a separate thread
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
-    async for token in streamer:
-        yield token
+    
+    while thread.is_alive():
+        while not streamer.queue.empty():
+            yield streamer.queue.get()
+    
+    # Ensure remaining tokens are yielded after thread completes
+    while not streamer.queue.empty():
+        yield streamer.queue.get()
 
 @app.get("/stream")
 async def stream(prompt: str = Query(...)):
