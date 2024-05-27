@@ -28,7 +28,6 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 tokenizer = AutoTokenizer.from_pretrained(model_path)
-streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
 
 terminators = [
     tokenizer.eos_token_id,
@@ -45,6 +44,7 @@ async def generate_response(prompt: str):
     torch.cuda.empty_cache()
     gc.collect()
     inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
     generation_kwargs = {
         "input_ids": inputs["input_ids"],
         "attention_mask": inputs["attention_mask"],
