@@ -6,34 +6,13 @@ import gc
 from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextStreamer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextIteratorStreamer
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
 from peft import LoraConfig, get_peft_model
 
 
 #model_path = "meta-llama/Meta-Llama-3-70B-Instruct"
 model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
-
-class AsyncTextStreamer:
-    def __init__(self, tokenizer):
-        self.tokenizer = tokenizer
-        self.queue = asyncio.Queue()
-
-    async def stream(self):
-        while True:
-            token = await self.queue.get()
-            if token is None:
-                break
-            yield token
-
-    def put(self, token_id):
-        print("put", token_id)
-        token = self.tokenizer.batch_decode(token_id, skip_special_tokens=True)
-        asyncio.create_task(self.queue.put(token))
-    
-    async def end(self):
-        await self.queue.put(None)
-
 
 app = FastAPI()
 
@@ -48,7 +27,7 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 tokenizer = AutoTokenizer.from_pretrained(model_path)
-streamer = AsyncTextStreamer(tokenizer)
+streamer = TextIteratorStreamer(tokenizer)
 
 terminators = [
     tokenizer.eos_token_id,
@@ -59,10 +38,9 @@ async def generate_response(prompt: str):
     torch.cuda.empty_cache()
     gc.collect()
     inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-    task = asyncio.create_task(model.generate(**inputs, streamer=streamer, eos_token_id=terminators, do_sample=True, temperature=0.6, top_p=0.9))
-    async for token in streamer.stream():
+    await model.generate(**inputs, streamer=streamer, eos_token_id=terminators, do_sample=True, temperature=0.6, top_p=0.9)
+    async for token in streamer:
         yield token
-    await task
 
 @app.get("/stream")
 async def stream(prompt: str = Query(...)):
