@@ -12,7 +12,7 @@ from peft import LoraConfig, get_peft_model
 
 
 model_path = "meta-llama/Meta-Llama-3-70B-Instruct"
-#model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
+assistant_model_path = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 app = FastAPI()
 
@@ -27,6 +27,15 @@ config = AutoConfig.from_pretrained(model_path)
 
 model = AutoModelForCausalLM.from_pretrained(
     model_path,
+    device_map='auto',
+    config=config,
+    torch_dtype=torch.bfloat16,
+    quantization_config=bnb_config,
+    attn_implementation="flash_attention_2"
+)
+
+assistant_model = AutoModelForCausalLM.from_pretrained(
+    assistant_model_path,
     device_map='auto',
     config=config,
     torch_dtype=torch.bfloat16,
@@ -58,6 +67,7 @@ async def generate_response(prompt: str):
         "do_sample": True,
         "temperature": 0.6,
         "top_p": 0.9,
+        "assistant_model": assistant_model,
     }
 
     # Run the generation in a separate thread
@@ -76,9 +86,10 @@ async def stream(websocket: WebSocket):
     prompt = await websocket.receive_text()
     try:
         async for token in generate_response(prompt):
-            print(token)
             if token is None:
+                print("\n")
                 break
+            print(token, end='', flush=True)
             await websocket.send_text(token)
             await asyncio.sleep(0.01)
     except Exception as e:
