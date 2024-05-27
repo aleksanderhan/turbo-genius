@@ -55,7 +55,7 @@ terminators = [
 ]
 
 async def generate_response(prompt: str):
-    inputs = tokenizer(prompt, return_tensors="pt")
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
     task = asyncio.create_task(model.generate(**inputs, streamer=streamer, eos_token_id=terminators, do_sample=True, temperature=0.6, top_p=0.9))
     async for token in streamer.stream():
         yield token
