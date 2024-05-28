@@ -77,15 +77,27 @@ def build_engine(onnx_file_path, calibrator):
          builder.create_network(EXPLICIT_BATCH) as network, \
          trt.OnnxParser(network, TRT_LOGGER) as parser:
         
-        builder.max_batch_size = 1
-        builder.max_workspace_size = 1 << 30
-        builder.int8_mode = True
-        builder.int8_calibrator = calibrator
+        # Specify the optimization profile for dynamic shapes
+        profile = builder.create_optimization_profile()
         
         with open(onnx_file_path, 'rb') as model:
             parser.parse(model.read())
 
-        return builder.build_cuda_engine(network)
+        # Assuming input has dynamic shape, set the input dimensions
+        input_shape = (1, 128)  # Initial shape (batch_size, sequence_length)
+        profile.set_shape("input_ids", (1, 1), input_shape, (1, 512))  # Min, Opt, Max shapes
+
+        config = builder.create_builder_config()
+        config.add_optimization_profile(profile)
+
+        # Enable INT8 mode
+        config.set_flag(trt.BuilderFlag.INT8)
+        config.int8_calibrator = calibrator
+
+        builder.max_workspace_size = 1 << 30  # 1 GB workspace
+
+        return builder.build_engine(network, config)
+
 
 calibration_files = [f"calibration_data_{i}.npy" for i in range(len(sentences))]
 calibrator = MyCalibrator(calibration_files, batch_size=1)
