@@ -61,7 +61,7 @@ async def stream_tokens(streamer: TextIteratorStreamer):
 async def generate_response(prompt: str):
     torch.cuda.empty_cache()
     gc.collect()
-    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda:0")
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
     generation_kwargs = {
         "input_ids": inputs["input_ids"],
