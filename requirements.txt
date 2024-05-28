@@ -17,3 +17,4 @@ termcolor
 nvidia-pyindex
 nvidia-tensorrt
 onnx
+pycuda

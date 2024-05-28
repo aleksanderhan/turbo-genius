@@ -31,7 +31,9 @@ RUN pip install transformers \
                 uvicorn \ 
                 tensorrt \
                 nvidia-pyindex \
-                nvidia-tensorrt
+                nvidia-tensorrt \
+                onnx \
+                pycuda 
 RUN pip install -U "huggingface_hub[cli]"
 
 

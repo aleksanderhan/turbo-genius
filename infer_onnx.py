@@ -32,12 +32,16 @@ for i, sentence in enumerate(sentences):
     np.save(f"calibration_data_{i}.npy", input_ids)
 
 
+TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+
 class MyCalibrator(trt.IInt8EntropyCalibrator2):
-    def __init__(self, calibration_files, batch_size):
+    def __init__(self, calibration_files, batch_size, input_shape):
         trt.IInt8EntropyCalibrator2.__init__(self)
         self.batch_size = batch_size
         self.calibration_files = calibration_files
         self.current_index = 0
+        self.input_shape = input_shape
         self.device_input = cuda.mem_alloc(trt.volume((batch_size, *self.input_shape)) * trt.float32.itemsize)
 
     def get_batch_size(self):
@@ -49,23 +53,17 @@ class MyCalibrator(trt.IInt8EntropyCalibrator2):
 
         batch = np.zeros((self.batch_size, *self.input_shape), dtype=np.float32)
         for i in range(self.batch_size):
-            input_data = self.load_data(self.calibration_files[self.current_index + i])
+            input_data = np.load(self.calibration_files[self.current_index + i])
             batch[i] = input_data
 
         self.current_index += self.batch_size
         cuda.memcpy_htod(self.device_input, batch)
         return [self.device_input]
 
-    def load_data(self, file_path):
-        # Implement your data loading logic here
-        return np.random.randn(*self.input_shape).astype(np.float32)
-
     def read_calibration_cache(self):
-        # If you have a cache, return it here
         return None
 
     def write_calibration_cache(self, cache):
-        # Save the cache here if needed
         pass
 
 def build_engine(onnx_file_path, calibrator):
