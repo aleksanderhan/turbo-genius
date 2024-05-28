@@ -2,6 +2,8 @@ import asyncio
 import websockets
 import time
 import requests
+import argparse
+from termcolor import colored
 
 async def stream_tokens(uri, prompt):
     async with websockets.connect(uri) as websocket:
@@ -16,20 +18,20 @@ async def stream_tokens(uri, prompt):
                 token = await websocket.recv()
                 if token == "[DONE]":
                     break
-                print(token, end='', flush=True)
+                print(colored(token, "green"), end='', flush=True)
                 num_token += 1
         except websockets.exceptions.ConnectionClosed:
             pass
         finally:
             dt = time.time() - t0
             print("\n")
-            print("Time elapsed: {:.2f} seconds".format(dt), "Number of tokens/sec: {:.2f}".format(num_token/dt))
+            print(colored("Time elapsed: {:.2f} seconds".format(dt) + " Number of tokens/sec: {:.2f}".format(num_token/dt), "blue"))
             print()
 
-async def interactive_client():
+async def interactive_client(args):
     # WebSocket server URI including the endpoint
-    session_response = requests.get("http://192.168.1.13:8000/session")
-    uri = f"ws://192.168.1.13:8000/stream/{session_response.json()}"
+    session_response = requests.get(f"http://{args.server}:8000/session")
+    uri = f"ws://{args.server}:{args.port}/stream/{session_response.json()}"
 
     while True:
         prompt = input(">> ")
@@ -39,4 +41,9 @@ async def interactive_client():
         await stream_tokens(uri, prompt)
 
 if __name__ == "__main__":
-    asyncio.run(interactive_client())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--server', action='store', default="localhost")
+    parser.add_argument('--port', action='store', default="8000")
+    args = parser.parse_args()
+
+    asyncio.run(interactive_client(args))
