@@ -33,7 +33,7 @@ config = AutoConfig.from_pretrained(args.model)
 assistant_model = AutoModelForCausalLM.from_pretrained(
     args.assistant_model,
     device_map='cuda:0',
-    config=config,
+    config=AutoConfig.from_pretrained(args.assistant_model),
     quantization_config=bnb_config,
     attn_implementation="flash_attention_2"
 )
@@ -41,7 +41,7 @@ assistant_model = AutoModelForCausalLM.from_pretrained(
 model = AutoModelForCausalLM.from_pretrained(
     args.model,
     device_map='balanced_low_0',
-    config=config,
+    config=AutoConfig.from_pretrained(args.model),
     quantization_config=bnb_config,
     attn_implementation="flash_attention_2"
 )
