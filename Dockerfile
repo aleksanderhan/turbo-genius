@@ -28,8 +28,7 @@ RUN pip install transformers \
                 bitsandbytes \
                 flash-attn \
                 fastapi \
-                uvicorn \ 
-                tensorrt
+                uvicorn 
 RUN pip install -U "huggingface_hub[cli]"
 
 

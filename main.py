@@ -17,7 +17,8 @@ from session import Session, SessionManager
 app = FastAPI()
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', action='store', default="meta-llama/Meta-Llama-3-8B-Instruct")
+parser.add_argument('--model', action='store', default="meta-llama/Meta-Llama-3-70B-Instruct")
+parser.add_argument('--assistant_model', action='store', default="meta-llama/Meta-Llama-3-8B-Instruct")
 args = parser.parse_args()
 
 bnb_config = BitsAndBytesConfig(
@@ -29,9 +30,17 @@ bnb_config = BitsAndBytesConfig(
 
 config = AutoConfig.from_pretrained(args.model)
 
+assistant_model = AutoModelForCausalLM.from_pretrained(
+    args.assistant_model,
+    device_map='cuda:0',
+    config=config,
+    quantization_config=bnb_config,
+    attn_implementation="flash_attention_2"
+)
+
 model = AutoModelForCausalLM.from_pretrained(
     args.model,
-    device_map='auto',
+    device_map='balanced_low_0',
     config=config,
     quantization_config=bnb_config,
     attn_implementation="flash_attention_2"
@@ -62,6 +71,7 @@ async def generate_response(prompt: str):
         "temperature": 0.6,
         "top_p": 0.9,
         "max_length": config.max_position_embeddings,
+        "assistant_model": assistant_model,
     }
 
     # Run the generation in a separate thread
