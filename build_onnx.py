@@ -13,7 +13,7 @@ dummy_input = tokenizer("This is a test input.", return_tensors="pt").input_ids
 torch.onnx.export(
     model,
     dummy_input,
-    "model.onnx",
+    "model/model.onnx",
     verbose=True,
     input_names=["input_ids"],
     output_names=["output"],
