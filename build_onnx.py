@@ -9,7 +9,7 @@ args = parser.parse_args()
 model = AutoModelForCausalLM.from_pretrained(args.model, device_map='auto')
 tokenizer = AutoTokenizer.from_pretrained(args.model)
 
-dummy_input = tokenizer("This is a test input.", return_tensors="pt").input_ids
+dummy_input = tokenizer("This is a test input.", return_tensors="pt").input_ids.long()
 torch.onnx.export(
     model,
     dummy_input,

@@ -96,8 +96,6 @@ def build_engine(onnx_file_path, calibrator):
         config.set_flag(trt.BuilderFlag.INT8)
         config.int8_calibrator = calibrator
 
-        config.max_workspace_size = 1 << 30  # 1 GB workspace
-
         return builder.build_engine(network, config)
 
 
