@@ -73,6 +73,8 @@ class MyCalibrator(trt.IInt8EntropyCalibrator2):
 
 
 def build_engine(onnx_file_path, calibrator):
+    TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+    EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
     with trt.Builder(TRT_LOGGER) as builder, \
          builder.create_network(EXPLICIT_BATCH) as network, \
          trt.OnnxParser(network, TRT_LOGGER) as parser:
@@ -94,9 +96,10 @@ def build_engine(onnx_file_path, calibrator):
         config.set_flag(trt.BuilderFlag.INT8)
         config.int8_calibrator = calibrator
 
-        builder.max_workspace_size = 1 << 30  # 1 GB workspace
+        config.max_workspace_size = 1 << 30  # 1 GB workspace
 
         return builder.build_engine(network, config)
+
 
 
 calibration_files = [f"calibration_data_{i}.npy" for i in range(len(sentences))]
