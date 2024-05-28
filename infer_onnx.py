@@ -35,14 +35,18 @@ for i, sentence in enumerate(sentences):
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
 
+
 class MyCalibrator(trt.IInt8EntropyCalibrator2):
-    def __init__(self, calibration_files, batch_size, input_shape):
+    def __init__(self, calibration_files, batch_size):
         trt.IInt8EntropyCalibrator2.__init__(self)
         self.batch_size = batch_size
         self.calibration_files = calibration_files
         self.current_index = 0
-        self.input_shape = input_shape
-        self.device_input = cuda.mem_alloc(trt.volume((batch_size, *self.input_shape)) * trt.float32.itemsize)
+
+        # Load the first calibration file to determine input shape
+        input_data = np.load(self.calibration_files[0])
+        self.input_shape = input_data.shape[1:]  # Exclude batch size
+        self.device_input = cuda.mem_alloc(trt.volume((self.batch_size, *self.input_shape)) * trt.float32.itemsize)
 
     def get_batch_size(self):
         return self.batch_size
@@ -65,6 +69,8 @@ class MyCalibrator(trt.IInt8EntropyCalibrator2):
 
     def write_calibration_cache(self, cache):
         pass
+
+
 
 def build_engine(onnx_file_path, calibrator):
     with trt.Builder(TRT_LOGGER) as builder, \
