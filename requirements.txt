@@ -14,3 +14,5 @@ uvicorn
 tensorrt
 huggingface_hub
 termcolor
+nvidia-pyindex
+nvidia-tensorrt
