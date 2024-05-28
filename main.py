@@ -32,7 +32,7 @@ config = AutoConfig.from_pretrained(args.model)
 
 assistant_model = AutoModelForCausalLM.from_pretrained(
     args.assistant_model,
-    device_map='cuda:0',
+    device_map='auto',
     config=AutoConfig.from_pretrained(args.assistant_model),
     quantization_config=bnb_config,
     attn_implementation="flash_attention_2"
@@ -40,7 +40,7 @@ assistant_model = AutoModelForCausalLM.from_pretrained(
 
 model = AutoModelForCausalLM.from_pretrained(
     args.model,
-    device_map='balanced_low_0',
+    device_map='auto',
     config=AutoConfig.from_pretrained(args.model),
     quantization_config=bnb_config,
     attn_implementation="flash_attention_2"
@@ -61,7 +61,7 @@ async def stream_tokens(streamer: TextIteratorStreamer):
 async def generate_response(prompt: str):
     torch.cuda.empty_cache()
     gc.collect()
-    inputs = tokenizer(prompt, return_tensors="pt").to("cuda:0")
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
     generation_kwargs = {
         "input_ids": inputs["input_ids"],
