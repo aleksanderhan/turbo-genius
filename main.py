@@ -62,6 +62,7 @@ async def generate_response(prompt: str):
         "temperature": 0.6,
         "top_p": 0.9,
         "max_length": config.max_position_embeddings,
+        "prompt_lookup_num_tokens": 10,
     }
 
     # Run the generation in a separate thread
