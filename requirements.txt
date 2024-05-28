@@ -16,3 +16,4 @@ huggingface_hub
 termcolor
 nvidia-pyindex
 nvidia-tensorrt
+onnx

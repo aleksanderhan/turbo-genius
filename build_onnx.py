@@ -14,6 +14,7 @@ torch.onnx.export(
     model,
     dummy_input,
     "model.onnx",
+    verbose=True,
     input_names=["input_ids"],
     output_names=["output"],
     dynamic_axes={"input_ids": {0: "batch_size", 1: "sequence_length"}},
