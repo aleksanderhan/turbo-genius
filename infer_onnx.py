@@ -1,10 +1,36 @@
-import tensorrt as trt
 import numpy as np
+import argparse
+import tensorrt as trt
 import pycuda.driver as cuda
 import pycuda.autoinit
+from transformers import AutoTokenizer
+
 
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--model', action='store', default="meta-llama/Meta-Llama-3-8B-Instruct")
+args = parser.parse_args()
+
+tokenizer = AutoTokenizer.from_pretrained(args.model)
+
+# Example sentences
+sentences = [
+    "Tell me about the connection between the halting problem and the spectral gap problem.",
+    "Tell me about the limits of computatability.",
+    "Does TensorRT require representative data for calibration?",
+    "What is the difference between Flash Attention and Flash Attention 2?",
+    "Write me a python script to do supervised fine-tuning of a large language model!",
+]
+
+# Tokenize sentences and save as .npy files
+for i, sentence in enumerate(sentences):
+    inputs = tokenizer(sentence, return_tensors="pt")
+    input_ids = inputs["input_ids"].numpy()
+    np.save(f"calibration_data_{i}.npy", input_ids)
+
 
 class MyCalibrator(trt.IInt8EntropyCalibrator2):
     def __init__(self, calibration_files, batch_size):
@@ -57,7 +83,33 @@ def build_engine(onnx_file_path, calibrator):
 
         return builder.build_cuda_engine(network)
 
-calibration_files = [f"calibration_data_{i}.npy" for i in range(5)]
+calibration_files = [f"calibration_data_{i}.npy" for i in range(len(sentences))]
 calibrator = MyCalibrator(calibration_files, batch_size=1)
 
-engine = build_engine("model.onnx", calibrator)
+engine = build_engine("model/model.onnx", calibrator)
+
+
+def infer(engine, input_data):
+    context = engine.create_execution_context()
+    input_shape = input_data.shape
+    input_nbytes = input_data.nbytes
+    output_shape = (input_shape[0], 512)  # Adjust output shape as needed
+    output_nbytes = np.prod(output_shape) * np.dtype(np.float32).itemsize
+
+    d_input = cuda.mem_alloc(input_nbytes)
+    d_output = cuda.mem_alloc(output_nbytes)
+
+    bindings = [int(d_input), int(d_output)]
+    stream = cuda.Stream()
+
+    cuda.memcpy_htod_async(d_input, input_data, stream)
+    context.execute_async_v2(bindings=bindings, stream_handle=stream.handle)
+    output_data = np.empty(output_shape, dtype=np.float32)
+    cuda.memcpy_dtoh_async(output_data, d_output, stream)
+    stream.synchronize()
+
+    return output_data
+
+input_data = tokenizer("This is a test input.", return_tensors="pt").input_ids.numpy()
+output_data = infer(engine, input_data)
+print(output_data)
