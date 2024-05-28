@@ -96,7 +96,7 @@ def build_engine(onnx_file_path, calibrator):
         config.set_flag(trt.BuilderFlag.INT8)
         config.int8_calibrator = calibrator
 
-        return builder.build_engine(network, config)
+        return builder.build_cuda_engine(network, config)
 
 
 
