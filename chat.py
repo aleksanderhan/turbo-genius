@@ -7,7 +7,6 @@ import websockets
 import time
 import traceback
 import re
-import io
 import itertools
 import tkinter.font as tkFont
 from tkinter import scrolledtext
@@ -17,56 +16,37 @@ from pygments.styles import get_style_by_name
 from pygments.token import Token
 from pygments.formatter import Formatter
 
-
-
-
 class TkinterFormatter(Formatter):
-    def __init__(self, **options):
+    def __init__(self, text_widget, **options):
         Formatter.__init__(self, **options)
+        self.text_widget = text_widget
         self.style = get_style_by_name(options.get('style', 'default'))
-        self.style_string = {Token: ''}
+        self._configure_tags()
+
+    def _configure_tags(self):
         for token, style in self.style:
-            start = end = ''
-            if style['color']:
-                start += f'\033[38;2;{int(style["color"][0:2], 16)};{int(style["color"][2:4], 16)};{int(style["color"][4:6], 16)}m'
+            foreground = f'#{style["color"]}' if style['color'] else 'black'
+            font_options = ('Courier', 10, 'normal')
             if style['bold']:
-                start += '\033[1m'
+                font_options = ('Courier', 10, 'bold')
             if style['italic']:
-                start += '\033[3m'
-            if style['underline']:
-                start += '\033[4m'
-            if start:
-                end = '\033[0m'
-            self.style_string[token] = (start, end)
+                font_options = ('Courier', 10, 'italic')
+            if style['bold'] and style['italic']:
+                font_options = ('Courier', 10, 'bold italic')
+            self.text_widget.tag_configure(str(token), foreground=foreground, font=font_options)
 
     def format(self, tokensource, outfile):
-        lastval = ''
-        lasttype = None
         for ttype, value in tokensource:
-            if ttype != lasttype:
-                if lasttype is not None:
-                    start, end = self.style_string[lasttype]
-                    outfile.write(start + lastval + end)
-                lastval = ''
-            lastval += value
-            lasttype = ttype
-        if lasttype is not None:
-            start, end = self.style_string[lasttype]
-            outfile.write(start + lastval + end)
+            tag = str(ttype)
+            self.text_widget.insert('end', value, tag)
 
-
-def highlight_code(code):
-    """Highlights code in the specified Tkinter text widget."""
+def highlight_code(text_widget, code):
     lexer = PythonLexer()
-    formatter = TkinterFormatter()
-
-    # Create a string buffer to capture the highlighted text
-    with io.StringIO() as buf:
-        highlight(code, lexer, formatter, outfile=buf)
-        formatted_text = buf.getvalue()
-
-    return formatted_text
-
+    formatter = TkinterFormatter(text_widget)
+    start_index = text_widget.index(tk.END)
+    highlight(code, lexer, formatter)
+    end_index = text_widget.index(tk.END)
+    return start_index, end_index
 
 async def stream_tokens(uri, prompt, chat_area, app):
     app.after(0, lambda: add_user_message(chat_area, prompt))
@@ -105,25 +85,24 @@ def update_response_text(text_widget, text):
     text_widget.config(state='normal')  # Ensure the widget is editable
 
     # Extract code snippets and apply syntax highlighting
-    # Extract code snippets and replace them with highlighted code
     code_snippets = re.findall(r"```\n(.*?)\n```", text, flags=re.DOTALL)
-    new_text = text
+    parts = re.split(r"```\n.*?\n```", text)
 
-    # Replace each code block with a placeholder
-    for i, code in enumerate(code_snippets):
-        highlighted_code = highlight_code(code)
-        new_text = new_text.replace(f"```\n{code}\n```", highlighted_code)
-
-    # Insert the text with placeholders
     text_widget.delete("1.0", tk.END)  # Clear existing text
-    text_widget.insert(tk.END, new_text)  # Insert new text with placeholders
+
+    for part, code in itertools.zip_longest(parts, code_snippets):
+        if part:
+            text_widget.insert(tk.END, part)
+        if code:
+            start, end = highlight_code(text_widget, code)
+            text_widget.insert(tk.END, "\n\n", ("code", start, end))  # Insert highlighted code with tags
+
     text_widget.config(state='disabled')  # Disable editing after insertion
 
     # Adjust the height based on content
     num_lines = text_widget.count("1.0", tk.END, "displaylines")[0]
     text_widget.config(height=num_lines)
     chat_area.yview_moveto(1.0)  # Ensure scrolling to the bottom
-
 
 def add_user_message(chat_area, text):
     chat_area.config(state='normal')  # Enable the text widget to allow modifications
