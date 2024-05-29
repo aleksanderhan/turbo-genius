@@ -7,19 +7,18 @@ import websockets
 import time
 import traceback
 import re
-import itertools
 import tkinter.font as tkFont
 from tkinter import scrolledtext
-from pygments import lex, highlight
+from pygments import highlight
 from pygments.lexers import PythonLexer
 from pygments.styles import get_style_by_name
-from pygments.token import Token
 from pygments.formatter import Formatter
 
 class TkinterFormatter(Formatter):
-    def __init__(self, text_widget, **options):
-        Formatter.__init__(self, **options)
+    def __init__(self, text_widget, start_index, **options):
+        super().__init__(**options)
         self.text_widget = text_widget
+        self.start_index = start_index
         self.style = get_style_by_name(options.get('style', 'default'))
         self._configure_tags()
 
@@ -36,17 +35,16 @@ class TkinterFormatter(Formatter):
             self.text_widget.tag_configure(str(token), foreground=foreground, font=font_options)
 
     def format(self, tokensource, outfile):
+        current_index = self.start_index
         for ttype, value in tokensource:
             tag = str(ttype)
-            self.text_widget.insert('end', value, tag)
+            self.text_widget.insert(current_index, value, tag)
+            current_index = self.text_widget.index(f"{current_index} + {len(value)} chars")
 
-def highlight_code(text_widget, code):
+def highlight_code(text_widget, code, start_index):
     lexer = PythonLexer()
-    formatter = TkinterFormatter(text_widget)
-    start_index = text_widget.index(tk.END)
+    formatter = TkinterFormatter(text_widget, start_index)
     highlight(code, lexer, formatter)
-    end_index = text_widget.index(tk.END)
-    return start_index, end_index
 
 async def stream_tokens(uri, prompt, chat_area, app):
     app.after(0, lambda: add_user_message(chat_area, prompt))
@@ -69,7 +67,7 @@ async def stream_tokens(uri, prompt, chat_area, app):
                 while True:
                     token = await websocket.recv()
                     response_content += token
-                    app.after(0, lambda t=response_content: update_response_text(response_text, t))
+                    app.after(0, lambda t=response_content: update_response_text(response_text, t, chat_area))
                     num_token += 1
             except websockets.exceptions.ConnectionClosed:
                 print("Connection closed")
@@ -81,21 +79,24 @@ async def stream_tokens(uri, prompt, chat_area, app):
         traceback.print_exc()
         app.after(0, lambda: add_system_message(chat_area, f"WebSocket connection failed: {e}"))
 
-def update_response_text(text_widget, text):
+def update_response_text(text_widget, text, chat_area):
     text_widget.config(state='normal')  # Ensure the widget is editable
 
-    # Extract code snippets and apply syntax highlighting
-    code_snippets = re.findall(r"```\n(.*?)\n```", text, flags=re.DOTALL)
-    parts = re.split(r"```\n.*?\n```", text)
-
+    # Regular expression pattern to find code snippets between triple backticks
+    pattern = r"```(?:python)?\n(.*?)\n```"
+    parts = re.split(pattern, text, flags=re.DOTALL)
+    
     text_widget.delete("1.0", tk.END)  # Clear existing text
 
-    for part, code in itertools.zip_longest(parts, code_snippets):
-        if part:
+    for i, part in enumerate(parts):
+        if i % 2 == 0:
+            # Non-code part
             text_widget.insert(tk.END, part)
-        if code:
-            start, end = highlight_code(text_widget, code)
-            text_widget.insert(tk.END, "\n\n", ("code", start, end))  # Insert highlighted code with tags
+        else:
+            # Code part
+            start_index = text_widget.index(tk.END)
+            highlight_code(text_widget, part, start_index)
+            #text_widget.insert(tk.END, "\n")  # Ensure there's a newline after the code block
 
     text_widget.config(state='disabled')  # Disable editing after insertion
 
@@ -140,7 +141,7 @@ def add_system_message(chat_area, text):
 
 def update_text_widget_height(text_widget, chat_area):
     # Use the tkinter font module to measure the width of a single character '0'
-    font = tkFont.Font(font=text_widget.cget("font"))  # Corrected line
+    font = tkFont.Font(font=text_widget.cget("font"))
     char_width = font.measure('0')
     chat_area_width = chat_area.winfo_width()
     max_chars_per_line = chat_area_width // char_width
