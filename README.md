@@ -19,5 +19,5 @@ Streaming local llm server and client.
     python cli.py --server <server> --port <port>
 
 ### Tkinter desktop app
-    python chat.py --server <server> --port <port>
+    python chat_client.py --server <server> --port <port>
 
