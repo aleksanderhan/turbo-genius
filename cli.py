@@ -25,7 +25,10 @@ async def stream_tokens(uri, prompt):
         finally:
             dt = time.time() - t0
             print("\n")
-            print(colored("Time elapsed: {:.2f} seconds".format(dt) + " Number of tokens/sec: {:.2f}".format(num_token/dt), "blue"))
+            print(colored(
+                "Time elapsed: {:.2f} seconds".format(dt) + 
+                " Number of tokens/sec: {:.2f}".format(num_token/dt) + 
+                " Number of tokens: {}".format(num_token), "blue"))
             print()
 
 async def interactive_client(args):
