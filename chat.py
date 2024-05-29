@@ -1,13 +1,72 @@
 import tkinter as tk
+import argparse
+import requests
+import threading
 import asyncio
 import websockets
-import threading
 import time
-import requests
 import traceback
-import argparse
+import re
+import io
+import itertools
+import tkinter.font as tkFont
 from tkinter import scrolledtext
-import tkinter.font as tkfont
+from pygments import lex, highlight
+from pygments.lexers import PythonLexer
+from pygments.styles import get_style_by_name
+from pygments.token import Token
+from pygments.formatter import Formatter
+
+
+
+
+class TkinterFormatter(Formatter):
+    def __init__(self, **options):
+        Formatter.__init__(self, **options)
+        self.style = get_style_by_name(options.get('style', 'default'))
+        self.style_string = {Token: ''}
+        for token, style in self.style:
+            start = end = ''
+            if style['color']:
+                start += f'\033[38;2;{int(style["color"][0:2], 16)};{int(style["color"][2:4], 16)};{int(style["color"][4:6], 16)}m'
+            if style['bold']:
+                start += '\033[1m'
+            if style['italic']:
+                start += '\033[3m'
+            if style['underline']:
+                start += '\033[4m'
+            if start:
+                end = '\033[0m'
+            self.style_string[token] = (start, end)
+
+    def format(self, tokensource, outfile):
+        lastval = ''
+        lasttype = None
+        for ttype, value in tokensource:
+            if ttype != lasttype:
+                if lasttype is not None:
+                    start, end = self.style_string[lasttype]
+                    outfile.write(start + lastval + end)
+                lastval = ''
+            lastval += value
+            lasttype = ttype
+        if lasttype is not None:
+            start, end = self.style_string[lasttype]
+            outfile.write(start + lastval + end)
+
+
+def highlight_code(code):
+    """Highlights code in the specified Tkinter text widget."""
+    lexer = PythonLexer()
+    formatter = TkinterFormatter()
+
+    # Create a string buffer to capture the highlighted text
+    with io.StringIO() as buf:
+        highlight(code, lexer, formatter, outfile=buf)
+        formatted_text = buf.getvalue()
+
+    return formatted_text
+
 
 async def stream_tokens(uri, prompt, chat_area, app):
     app.after(0, lambda: add_user_message(chat_area, prompt))
@@ -43,14 +102,28 @@ async def stream_tokens(uri, prompt, chat_area, app):
         app.after(0, lambda: add_system_message(chat_area, f"WebSocket connection failed: {e}"))
 
 def update_response_text(text_widget, text):
-    text_widget.config(state='normal')
-    text_widget.delete("1.0", tk.END)
-    text_widget.insert(tk.END, text)
-    text_widget.config(state='disabled')
-    # Dynamically adjust height
+    text_widget.config(state='normal')  # Ensure the widget is editable
+
+    # Extract code snippets and apply syntax highlighting
+    # Extract code snippets and replace them with highlighted code
+    code_snippets = re.findall(r"```\n(.*?)\n```", text, flags=re.DOTALL)
+    new_text = text
+
+    # Replace each code block with a placeholder
+    for i, code in enumerate(code_snippets):
+        highlighted_code = highlight_code(code)
+        new_text = new_text.replace(f"```\n{code}\n```", highlighted_code)
+
+    # Insert the text with placeholders
+    text_widget.delete("1.0", tk.END)  # Clear existing text
+    text_widget.insert(tk.END, new_text)  # Insert new text with placeholders
+    text_widget.config(state='disabled')  # Disable editing after insertion
+
+    # Adjust the height based on content
     num_lines = text_widget.count("1.0", tk.END, "displaylines")[0]
     text_widget.config(height=num_lines)
-    chat_area.yview_moveto(1.0)
+    chat_area.yview_moveto(1.0)  # Ensure scrolling to the bottom
+
 
 def add_user_message(chat_area, text):
     chat_area.config(state='normal')  # Enable the text widget to allow modifications
@@ -88,7 +161,7 @@ def add_system_message(chat_area, text):
 
 def update_text_widget_height(text_widget, chat_area):
     # Use the tkinter font module to measure the width of a single character '0'
-    font = tkfont.Font(font=text_widget.cget("font"))
+    font = tkFont.Font(font=text_widget.cget("font"))  # Corrected line
     char_width = font.measure('0')
     chat_area_width = chat_area.winfo_width()
     max_chars_per_line = chat_area_width // char_width
@@ -112,7 +185,7 @@ def send_message(args, session_id):
             asyncio.run_coroutine_threadsafe(stream_tokens(uri, prompt, chat_area, app), event_loop)
         except Exception as e:
             traceback.print_exc()
-            add_system_message(chat_area, f"Failed to send message: {e}", "stats")
+            add_system_message(chat_area, f"Failed to send message: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
