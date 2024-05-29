@@ -16,7 +16,7 @@ async def stream_tokens(uri, prompt):
         try:
             while True:
                 token = await websocket.recv()
-                if token == "[DONE]":
+                if token == None:
                     break
                 print(colored(token, "green"), end='', flush=True)
                 num_token += 1

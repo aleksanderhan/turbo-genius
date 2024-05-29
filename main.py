@@ -81,7 +81,9 @@ def make_prompt(session: Session):
         return_tensors="pt",
         tokenize=True
     )
-    if inputs.shape[-1] > int(config.max_position_embeddings * 0.9):
+    num_tokens = inputs.shape[-1]
+    print(f"Number of tokens (session {session.session_id}): ", num_tokens)
+    if num_tokens > int(config.max_position_embeddings * 0.9):
         session.truncate_messages()
         return make_prompt(session)
     else:
@@ -103,10 +105,8 @@ async def stream(websocket: WebSocket, session_id: int):
     try:
         async for token in generate_response(prompt):
             if token is None:
-                print("\n")
                 break
             completion += token
-            print(token, end='', flush=True)
             await websocket.send_text(token)
             await asyncio.sleep(0.01)
     except Exception as e:
