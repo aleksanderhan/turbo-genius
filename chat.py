@@ -5,12 +5,13 @@ import threading
 import time
 import requests
 import traceback
+import argparse
 from tkinter import scrolledtext
 
 async def stream_tokens(uri, prompt, chat_area, app):
     app.after(0, lambda: update_chat_area(chat_area, f"You: {prompt}", "user"))
     response_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgreen")
-    response_label = tk.Label(response_frame, anchor="w", justify="left", wraplength=chat_area.winfo_width() - 20, bg="lightgreen", font=("Arial", 10, "bold"))
+    response_label = tk.Label(response_frame, anchor="w", justify="left", wraplength=chat_area.winfo_width() - 20, bg="lightgreen", font=("Arial", 10, "bold"), fg="black")
     response_label.pack(fill="both", expand=True)
     app.after(0, lambda: chat_area.window_create(tk.END, window=response_frame))
     
@@ -35,15 +36,14 @@ async def stream_tokens(uri, prompt, chat_area, app):
                 stats = f"Time elapsed: {dt:.2f} seconds, Number of tokens/sec: {num_token/dt:.2f}, Number of tokens: {num_token}"
                 app.after(0, lambda: update_chat_area(chat_area, stats, "stats"))
     except Exception as e:
-        print(f"WebSocket connection failed: {e}")
+        traceback.print_exc()
         app.after(0, lambda: update_chat_area(chat_area, f"WebSocket connection failed: {e}", "stats"))
 
 def update_response_label(label, text):
-    label.config(text=text)
+    label.config(text=text, fg="black")
 
 def update_chat_area(chat_area, text, msg_type):
     chat_area.config(state='normal')  # Enable the text widget to allow modifications
-    chat_area.insert(tk.END, "\n")    # Insert a newline before the message card
 
     if msg_type == "user":
         bg_color = "lightblue"
@@ -59,14 +59,17 @@ def update_chat_area(chat_area, text, msg_type):
         font = ("Arial", 10, "normal")
 
     message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg=bg_color)
-    message_label = tk.Label(message_frame, text=text, anchor="w", justify="left", wraplength=chat_area.winfo_width() - 20, bg=bg_color, font=font)
+    message_label = tk.Label(message_frame, text=text, anchor="w", justify="left", wraplength=chat_area.winfo_width() - 20, bg=bg_color, font=font, fg="black")
     message_label.pack(fill="both", expand=True)
-    
+
     chat_area.window_create(tk.END, window=message_frame)
     chat_area.insert(tk.END, "\n\n")  # Insert newlines after the message card
 
     chat_area.config(state='disabled')  # Disable the text widget to prevent user modifications
     chat_area.yview(tk.END)  # Scroll to the end
+
+    chat_area.see(tk.END)  # Force the scrollbar to update and scroll to the bottom
+    chat_area.update_idletasks()
 
 def start_asyncio_loop():
     global event_loop
@@ -74,48 +77,53 @@ def start_asyncio_loop():
     asyncio.set_event_loop(event_loop)
     event_loop.run_forever()
 
-def send_message():
+def send_message(args):
     prompt = message_entry.get("1.0", tk.END).strip()
     if prompt:
         message_entry.delete("1.0", tk.END)
         try:
-            session_response = requests.get(f"http://192.168.1.13:8000/session")
+            session_response = requests.get(f"http://{args.server}:{args.port}/session")
             session_id = session_response.json()
-            print(f"Received session ID: {session_id}")
-            uri = f"ws://192.168.1.13:8000/stream/{session_id}"
+            uri = f"ws://{args.server}:{args.port}/stream/{session_id}"
             asyncio.run_coroutine_threadsafe(stream_tokens(uri, prompt, chat_area, app), event_loop)
         except Exception as e:
             traceback.print_exc()
             update_chat_area(chat_area, f"Failed to send message: {e}", "stats")
 
-# Setup the asyncio event loop in a separate thread
-loop_thread = threading.Thread(target=start_asyncio_loop, daemon=True)
-loop_thread.start()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--server', action='store', default="localhost")
+    parser.add_argument('--port', action='store', default="8000")
+    args = parser.parse_args()
 
-# Tkinter setup
-app = tk.Tk()
-app.title("Turbo-Genius Chat Interface")
+    # Setup the asyncio event loop in a separate thread
+    loop_thread = threading.Thread(target=start_asyncio_loop, daemon=True)
+    loop_thread.start()
 
-chat_area = scrolledtext.ScrolledText(app, height=20, width=75)
-chat_area.grid(row=0, column=0, columnspan=2, sticky='nsew')
-chat_area.config(state='disabled')
+    # Tkinter setup
+    app = tk.Tk()
+    app.title("Turbo-Genius Chat Interface")
 
-# Input field and send button
-input_frame = tk.Frame(app)
-input_frame.grid(row=1, column=0, columnspan=2, sticky='ew')
+    chat_area = scrolledtext.ScrolledText(app, height=20, width=75)
+    chat_area.grid(row=0, column=0, columnspan=2, sticky='nsew')
+    chat_area.config(state='disabled')
 
-message_entry = tk.Text(input_frame, height=3)
-message_entry.grid(row=0, column=0, sticky='ew')
-message_entry.focus_set()
+    # Input field and send button
+    input_frame = tk.Frame(app)
+    input_frame.grid(row=1, column=0, columnspan=2, sticky='ew')
 
-send_button = tk.Button(input_frame, text="Send", command=send_message)
-send_button.grid(row=0, column=1, sticky='ew')
+    message_entry = tk.Text(input_frame, height=3)
+    message_entry.grid(row=0, column=0, sticky='ew')
+    message_entry.focus_set()
 
-# Make the input field and send button expand with the window
-app.grid_columnconfigure(0, weight=1)
-app.grid_rowconfigure(0, weight=1)
-input_frame.grid_columnconfigure(0, weight=1)
+    send_button = tk.Button(input_frame, text="Send", command=lambda args=args: send_message(args))
+    send_button.grid(row=0, column=1, sticky='ew')
 
-app.bind('<Return>', lambda event: send_message())
+    # Make the input field and send button expand with the window
+    app.grid_columnconfigure(0, weight=1)
+    app.grid_rowconfigure(0, weight=1)
+    input_frame.grid_columnconfigure(0, weight=1)
 
-app.mainloop()
+    app.bind('<Return>', lambda event, args=args: send_message(args))
+
+    app.mainloop()
