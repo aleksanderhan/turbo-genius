@@ -96,7 +96,6 @@ def update_response_text(text_widget, text, chat_area):
             # Code part
             start_index = text_widget.index(tk.END)
             highlight_code(text_widget, part, start_index)
-            #text_widget.insert(tk.END, "\n")  # Ensure there's a newline after the code block
 
     text_widget.config(state='disabled')  # Disable editing after insertion
 
@@ -156,16 +155,19 @@ def start_asyncio_loop():
     asyncio.set_event_loop(event_loop)
     event_loop.run_forever()
 
-def send_message(args, session_id):
-    prompt = message_entry.get("1.0", tk.END).strip()
-    if prompt:
-        message_entry.delete("1.0", tk.END)
-        try:
-            uri = f"ws://{args.server}:{args.port}/stream/{session_id}"
-            asyncio.run_coroutine_threadsafe(stream_tokens(uri, prompt, chat_area, app), event_loop)
-        except Exception as e:
-            traceback.print_exc()
-            add_system_message(chat_area, f"Failed to send message: {e}")
+def send_message(event, args, session_id):
+    if event.state == 17 and event.keysym == 'Return':  # Shift + Enter
+        message_entry.insert(tk.END, '\n')
+    elif (event is None or event.state == 16) and event.keysym == 'Return':  # Enter without Shift
+        prompt = message_entry.get("1.0", tk.END).strip()
+        if prompt:
+            message_entry.delete("1.0", tk.END)
+            try:
+                uri = f"ws://{args.server}:{args.port}/stream/{session_id}"
+                asyncio.run_coroutine_threadsafe(stream_tokens(uri, prompt, chat_area, app), event_loop)
+            except Exception as e:
+                traceback.print_exc()
+                add_system_message(chat_area, f"Failed to send message: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -184,7 +186,7 @@ if __name__ == "__main__":
     session_response = requests.get(f"http://{args.server}:{args.port}/session")
     session_id = session_response.json()
 
-    chat_area = scrolledtext.ScrolledText(app, height=20, width=75)
+    chat_area = scrolledtext.ScrolledText(app, height=20, width=90)
     chat_area.grid(row=1, column=1, columnspan=2, sticky='nsew')
     chat_area.config(state='disabled')
 
@@ -196,7 +198,7 @@ if __name__ == "__main__":
     message_entry.grid(row=0, column=0, sticky='ew')
     message_entry.focus_set()
 
-    send_button = tk.Button(input_frame, text="Send", command=lambda args=args, session_id=session_id: send_message(args, session_id))
+    send_button = tk.Button(input_frame, text="Send", command=lambda args=args, session_id=session_id: send_message(None, args, session_id))
     send_button.grid(row=0, column=1, sticky='ew')
 
     # Make the input field and send button expand with the window
@@ -209,6 +211,6 @@ if __name__ == "__main__":
     app.grid_columnconfigure(0, weight=1)
     app.grid_columnconfigure(3, weight=1)
 
-    app.bind('<Return>', lambda event, args=args, session_id=session_id: send_message(args, session_id))
+    app.bind('<Return>', lambda event, args=args, session_id=session_id: send_message(event, args, session_id))
 
     app.mainloop()
