@@ -8,9 +8,9 @@ import traceback
 from tkinter import scrolledtext
 
 async def stream_tokens(uri, prompt, chat_area, app):
-    app.after(0, lambda: update_chat_area(chat_area, f"You: {prompt}"))
-    response_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid")
-    response_label = tk.Label(response_frame, anchor="w", justify="left", wraplength=chat_area.winfo_width() - 20)
+    app.after(0, lambda: update_chat_area(chat_area, f"You: {prompt}", "user"))
+    response_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgreen")
+    response_label = tk.Label(response_frame, anchor="w", justify="left", wraplength=chat_area.winfo_width() - 20, bg="lightgreen", font=("Arial", 10, "bold"))
     response_label.pack(fill="both", expand=True)
     app.after(0, lambda: chat_area.window_create(tk.END, window=response_frame))
     
@@ -33,20 +33,33 @@ async def stream_tokens(uri, prompt, chat_area, app):
             finally:
                 dt = time.time() - t0
                 stats = f"Time elapsed: {dt:.2f} seconds, Number of tokens/sec: {num_token/dt:.2f}, Number of tokens: {num_token}"
-                app.after(0, lambda: update_chat_area(chat_area, stats))
+                app.after(0, lambda: update_chat_area(chat_area, stats, "stats"))
     except Exception as e:
         print(f"WebSocket connection failed: {e}")
-        app.after(0, lambda: update_chat_area(chat_area, f"WebSocket connection failed: {e}"))
+        app.after(0, lambda: update_chat_area(chat_area, f"WebSocket connection failed: {e}", "stats"))
 
 def update_response_label(label, text):
     label.config(text=text)
 
-def update_chat_area(chat_area, text):
+def update_chat_area(chat_area, text, msg_type):
     chat_area.config(state='normal')  # Enable the text widget to allow modifications
     chat_area.insert(tk.END, "\n")    # Insert a newline before the message card
 
-    message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid")
-    message_label = tk.Label(message_frame, text=text, anchor="w", justify="left", wraplength=chat_area.winfo_width() - 20)
+    if msg_type == "user":
+        bg_color = "lightblue"
+        font = ("Arial", 10, "normal")
+    elif msg_type == "response":
+        bg_color = "lightgreen"
+        font = ("Arial", 10, "bold")
+    elif msg_type == "stats":
+        bg_color = "lightgray"
+        font = ("Arial", 10, "italic")
+    else:
+        bg_color = "white"
+        font = ("Arial", 10, "normal")
+
+    message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg=bg_color)
+    message_label = tk.Label(message_frame, text=text, anchor="w", justify="left", wraplength=chat_area.winfo_width() - 20, bg=bg_color, font=font)
     message_label.pack(fill="both", expand=True)
     
     chat_area.window_create(tk.END, window=message_frame)
@@ -54,8 +67,6 @@ def update_chat_area(chat_area, text):
 
     chat_area.config(state='disabled')  # Disable the text widget to prevent user modifications
     chat_area.yview(tk.END)  # Scroll to the end
-
-
 
 def start_asyncio_loop():
     global event_loop
@@ -75,8 +86,7 @@ def send_message():
             asyncio.run_coroutine_threadsafe(stream_tokens(uri, prompt, chat_area, app), event_loop)
         except Exception as e:
             traceback.print_exc()
-            update_chat_area(chat_area, f"Failed to send message: {e}")
-
+            update_chat_area(chat_area, f"Failed to send message: {e}", "stats")
 
 # Setup the asyncio event loop in a separate thread
 loop_thread = threading.Thread(target=start_asyncio_loop, daemon=True)
