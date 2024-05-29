@@ -7,12 +7,16 @@ import requests
 import traceback
 import argparse
 from tkinter import scrolledtext
+import tkinter.font as tkfont
 
 async def stream_tokens(uri, prompt, chat_area, app):
-    app.after(0, lambda: update_chat_area(chat_area, f"You: {prompt}", "user"))
+    app.after(0, lambda: add_user_message(chat_area, prompt))
+
     response_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgreen")
-    response_label = tk.Label(response_frame, anchor="w", justify="left", wraplength=chat_area.winfo_width() - 20, bg="lightgreen", font=("Arial", 10, "bold"), fg="black")
-    response_label.pack(fill="both", expand=True)
+    response_text = tk.Text(response_frame, wrap='word', bg="lightgreen", font=("Arial", 10, "bold"), fg="black", padx=10, pady=5, height=1)
+    response_text.pack(fill="both", expand=True)
+    response_text.insert(tk.END, "")
+    response_text.config(state='disabled')
     app.after(0, lambda: chat_area.window_create(tk.END, window=response_frame))
     app.after(0, lambda: chat_area.insert(tk.END, "\n\n"))  # Add space after the response
 
@@ -21,52 +25,76 @@ async def stream_tokens(uri, prompt, chat_area, app):
             await websocket.send(prompt)
             t0 = time.time()
             num_token = 0
-            response_text = ""
+            response_content = ""
             try:
                 while True:
                     token = await websocket.recv()
-                    if token == "[DONE]":
-                        break
-                    response_text += token
-                    app.after(0, lambda t=response_text: update_response_label(response_label, t))
+                    response_content += token
+                    app.after(0, lambda t=response_content: update_response_text(response_text, t))
                     num_token += 1
             except websockets.exceptions.ConnectionClosed:
                 print("Connection closed")
             finally:
                 dt = time.time() - t0
                 stats = f"Time elapsed: {dt:.2f} seconds, Number of tokens/sec: {num_token/dt:.2f}, Number of tokens: {num_token}"
-                app.after(0, lambda: update_chat_area(chat_area, stats, "stats"))
+                app.after(0, lambda: add_system_message(chat_area, stats))
     except Exception as e:
         traceback.print_exc()
-        app.after(0, lambda: update_chat_area(chat_area, f"WebSocket connection failed: {e}", "stats"))
+        app.after(0, lambda: add_system_message(chat_area, f"WebSocket connection failed: {e}"))
 
-def update_response_label(label, text):
-    label.config(text=text, fg="black")
+def update_response_text(text_widget, text):
+    text_widget.config(state='normal')
+    text_widget.delete("1.0", tk.END)
+    text_widget.insert(tk.END, text)
+    text_widget.config(state='disabled')
+    # Dynamically adjust height
+    num_lines = text_widget.count("1.0", tk.END, "displaylines")[0]
+    text_widget.config(height=num_lines)
     chat_area.yview_moveto(1.0)
 
-def update_chat_area(chat_area, text, msg_type):
+def add_user_message(chat_area, text):
     chat_area.config(state='normal')  # Enable the text widget to allow modifications
     chat_area.insert(tk.END, "\n\n") 
-    if msg_type == "user":
-        bg_color = "lightblue"
-        font = ("Arial", 10, "normal")
-    elif msg_type == "response":
-        bg_color = "lightgreen"
-        font = ("Arial", 10, "bold")
-    elif msg_type == "stats":
-        bg_color = "lightgray"
-        font = ("Arial", 10, "italic")
-    else:
-        bg_color = "white"
-        font = ("Arial", 10, "normal")
 
-    message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg=bg_color)
-    message_label = tk.Label(message_frame, text=text, anchor="w", justify="left", wraplength=chat_area.winfo_width() - 20, bg=bg_color, font=font, fg="black")
-    message_label.pack(fill="both", expand=True)
+    message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightblue")
+    message_text = tk.Text(message_frame, wrap='word', bg="lightblue", font=("Arial", 10, "normal"), fg="black", padx=10, pady=5, height=1)
+    message_text.insert(tk.END, text)
+    message_text.config(state='disabled')
+    message_text.pack(fill="both", expand=True)
 
     chat_area.window_create(tk.END, window=message_frame)
     chat_area.insert(tk.END, "\n\n") 
     chat_area.config(state='disabled')
+
+    # Dynamically adjust height
+    update_text_widget_height(message_text, chat_area)
+
+def add_system_message(chat_area, text):
+    chat_area.config(state='normal')  # Enable the text widget to allow modifications
+    chat_area.insert(tk.END, "\n\n") 
+
+    message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgray")
+    message_text = tk.Text(message_frame, wrap='word', bg="lightgray", font=("Arial", 10, "italic"), fg="black", padx=10, pady=5, height=1)
+    message_text.insert(tk.END, text)
+    message_text.config(state='disabled')
+    message_text.pack(fill="both", expand=True)
+    
+    chat_area.window_create(tk.END, window=message_frame)
+    chat_area.insert(tk.END, "\n\n") 
+    chat_area.config(state='disabled')
+
+    # Dynamically adjust height
+    update_text_widget_height(message_text, chat_area)
+
+def update_text_widget_height(text_widget, chat_area):
+    # Use the tkinter font module to measure the width of a single character '0'
+    font = tkfont.Font(font=text_widget.cget("font"))
+    char_width = font.measure('0')
+    chat_area_width = chat_area.winfo_width()
+    max_chars_per_line = chat_area_width // char_width
+    text_content = text_widget.get("1.0", "end-1c")
+    num_lines = (len(text_content) + max_chars_per_line - 1) // max_chars_per_line
+    text_widget.config(height=num_lines)
     chat_area.yview_moveto(1.0)
 
 def start_asyncio_loop():
@@ -84,7 +112,7 @@ def send_message(args, session_id):
             asyncio.run_coroutine_threadsafe(stream_tokens(uri, prompt, chat_area, app), event_loop)
         except Exception as e:
             traceback.print_exc()
-            update_chat_area(chat_area, f"Failed to send message: {e}", "stats")
+            add_system_message(chat_area, f"Failed to send message: {e}", "stats")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
