@@ -2,6 +2,7 @@
 class Session:
     def __init__(self, session_id):
         self.session_id = session_id
+        self.title = f"Session {session_id}"
         self.messages = [
             {"role": "system", "content": "Help the user with anything they want!"},
         ]
@@ -23,8 +24,8 @@ class SessionManager:
     def __init__(self):
         self.sessions = {}
 
-    def get_session(self, session_id):
-        return self.sessions[session_id]
+    def get_sessions(self):
+        return self.sessions
     
     def get_new_session(self):
         session_id = len(self.sessions)

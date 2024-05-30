@@ -120,6 +120,11 @@ async def get_session():
     session = session_manager.get_new_session()
     return session.session_id
 
+@app.get("/sessions")
+async def get_sessions():
+    sessions = session_manager.get_sessions()
+    return sessions
+
 
 if __name__ == "__main__":
     session_manager = SessionManager()

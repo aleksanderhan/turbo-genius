@@ -8,6 +8,7 @@ import time
 import traceback
 import re
 import tkinter.font as tkFont
+import platform
 from tkinter import scrolledtext
 from pygments import highlight
 from pygments.lexers import PythonLexer
@@ -47,7 +48,7 @@ def highlight_code(text_widget, code, start_index):
     highlight(code, lexer, formatter)
 
 async def stream_tokens(uri, prompt, chat_area, app):
-    app.after(0, lambda: add_user_message(chat_area, prompt))
+    app.after(0, lambda: ChatApp.add_user_message(chat_area, prompt))
 
     response_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgreen")
     response_text = tk.Text(response_frame, wrap='word', bg="lightgreen", font=("Arial", 10, "bold"), fg="black", padx=10, pady=5, height=1)
@@ -67,87 +68,154 @@ async def stream_tokens(uri, prompt, chat_area, app):
                 while True:
                     token = await websocket.recv()
                     response_content += token
-                    app.after(0, lambda t=response_content: update_response_text(response_text, t, chat_area))
+                    app.after(0, lambda t=response_content: ChatApp.update_response_text(response_text, t, chat_area))
                     num_token += 1
             except websockets.exceptions.ConnectionClosed:
                 print("Connection closed")
             finally:
                 dt = time.time() - t0
                 stats = f"Time elapsed: {dt:.2f} seconds, Number of tokens/sec: {num_token/dt:.2f}, Number of tokens: {num_token}"
-                app.after(0, lambda: add_system_message(chat_area, stats))
+                app.after(0, lambda: ChatApp.add_system_message(chat_area, stats))
     except Exception as e:
         traceback.print_exc()
-        app.after(0, lambda: add_system_message(chat_area, f"WebSocket connection failed: {e}"))
+        app.after(0, lambda: ChatApp.add_system_message(chat_area, f"WebSocket connection failed: {e}"))
 
-def update_response_text(text_widget, text, chat_area):
-    text_widget.config(state='normal')  # Ensure the widget is editable
+class ChatApp:
+    def __init__(self, root, server, port, session_id):
+        self.root = root
+        self.server = server
+        self.port = port
+        self.session_id = session_id
 
-    # Regular expression pattern to find code snippets between triple backticks
-    pattern = r"```(?:python)?\n(.*?)\n```"
-    parts = re.split(pattern, text, flags=re.DOTALL)
-    
-    text_widget.delete("1.0", tk.END)  # Clear existing text
+        self.root.title("Chat Interface")
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_columnconfigure(1, weight=0)
+        self.root.grid_columnconfigure(2, weight=1)
 
-    for i, part in enumerate(parts):
-        if i % 2 == 0:
-            # Non-code part
-            text_widget.insert(tk.END, part)
-        else:
-            # Code part
-            start_index = text_widget.index(tk.END)
-            highlight_code(text_widget, part, start_index)
+        self.sidebar_frame = tk.Frame(root, bg="lightgray", width=200)
+        self.sidebar_frame.grid(row=0, column=0, sticky="ns")
+        self.sidebar_frame.grid_propagate(False)
 
-    text_widget.config(state='disabled')  # Disable editing after insertion
+        for i in range(10):
+            label = tk.Label(self.sidebar_frame, text=f"Label {i+1}", bg="lightgray", font=("Arial", 12))
+            label.grid(row=i, column=0, padx=5, pady=5, sticky="w")
 
-    # Adjust the height based on content
-    num_lines = text_widget.count("1.0", tk.END, "displaylines")[0]
-    text_widget.config(height=num_lines)
-    chat_area.yview_moveto(1.0)  # Ensure scrolling to the bottom
+        self.center_frame = tk.Frame(root)
+        self.center_frame.grid(row=0, column=1, sticky="nsew")
+        self.center_frame.grid_rowconfigure(0, weight=1)
+        self.center_frame.grid_columnconfigure(0, weight=1)
 
-def add_user_message(chat_area, text):
-    chat_area.config(state='normal')  # Enable the text widget to allow modifications
-    chat_area.insert(tk.END, "\n\n") 
+        self.chat_area = scrolledtext.ScrolledText(self.center_frame, width=75)
+        self.chat_area.grid(row=0, column=0, sticky="nsew")
+        self.chat_area.config(state='disabled')
 
-    message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightblue")
-    message_text = tk.Text(message_frame, wrap='word', bg="lightblue", font=("Arial", 10, "normal"), fg="black", padx=10, pady=5, height=1)
-    message_text.insert(tk.END, text)
-    message_text.config(state='disabled')
-    message_text.pack(fill="both", expand=True)
+        if platform.system() == "Windows":
+            self.root.state('zoomed')
+            self.chat_area.bind_all("<MouseWheel>", lambda event: self.on_mousewheel(event))
+        elif platform.system() == "Linux":
+            self.root.attributes('-zoomed', True)
+            self.chat_area.bind_all("<Button-4>", lambda event: self.on_mousewheel(event))
+            self.chat_area.bind_all("<Button-5>", lambda event: self.on_mousewheel(event))
 
-    chat_area.window_create(tk.END, window=message_frame)
-    chat_area.insert(tk.END, "\n\n") 
-    chat_area.config(state='disabled')
+        self.input_frame = tk.Frame(self.center_frame)
+        self.input_frame.grid(row=1, column=0, sticky="ew")
+        self.input_frame.grid_columnconfigure(0, weight=1)
 
-    # Dynamically adjust height
-    update_text_widget_height(message_text, chat_area)
+        self.message_entry = tk.Text(self.input_frame, height=3)
+        self.message_entry.pack(side="left", fill="x", expand=True)
+        self.message_entry.focus_set()
 
-def add_system_message(chat_area, text):
-    chat_area.config(state='normal')  # Enable the text widget to allow modifications
-    chat_area.insert(tk.END, "\n\n") 
+        self.send_button = tk.Button(self.input_frame, text="Send", command=self.send_message)
+        self.send_button.pack(side="right")
 
-    message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgray")
-    message_text = tk.Text(message_frame, wrap='word', bg="lightgray", font=("Arial", 10, "italic"), fg="black", padx=10, pady=5, height=1)
-    message_text.insert(tk.END, text)
-    message_text.config(state='disabled')
-    message_text.pack(fill="both", expand=True)
-    
-    chat_area.window_create(tk.END, window=message_frame)
-    chat_area.insert(tk.END, "\n\n") 
-    chat_area.config(state='disabled')
+        self.root.bind('<Return>', self.send_message)
 
-    # Dynamically adjust height
-    update_text_widget_height(message_text, chat_area)
+    def send_message(self, event=None):
+        prompt = self.message_entry.get("1.0", tk.END).strip()
+        if prompt:
+            self.message_entry.delete("1.0", tk.END)
+            try:
+                uri = f"ws://{self.server}:{self.port}/stream/{self.session_id}"
+                asyncio.run_coroutine_threadsafe(stream_tokens(uri, prompt, self.chat_area, self.root), event_loop)
+            except Exception as e:
+                traceback.print_exc()
+                self.add_system_message(f"Failed to send message: {e}")
 
-def update_text_widget_height(text_widget, chat_area):
-    # Use the tkinter font module to measure the width of a single character '0'
-    font = tkFont.Font(font=text_widget.cget("font"))
-    char_width = font.measure('0')
-    chat_area_width = chat_area.winfo_width()
-    max_chars_per_line = chat_area_width // char_width
-    text_content = text_widget.get("1.0", "end-1c")
-    num_lines = (len(text_content) + max_chars_per_line - 1) // max_chars_per_line
-    text_widget.config(height=num_lines)
-    chat_area.yview_moveto(1.0)
+    @staticmethod
+    def add_user_message(chat_area, text):
+        chat_area.config(state='normal')
+        chat_area.insert(tk.END, "\n\n")
+
+        message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightblue")
+        message_text = tk.Text(message_frame, wrap='word', bg="lightblue", font=("Arial", 10, "normal"), fg="black", padx=10, pady=5, height=1)
+        message_text.insert(tk.END, text)
+        message_text.config(state='disabled')
+        message_text.pack(fill="both", expand=True)
+
+        chat_area.window_create(tk.END, window=message_frame)
+        chat_area.insert(tk.END, "\n\n")
+        chat_area.config(state='disabled')
+
+        ChatApp.update_text_widget_height(message_text, chat_area)
+
+    @staticmethod
+    def add_system_message(chat_area, text):
+        chat_area.config(state='normal')
+        chat_area.insert(tk.END, "\n\n")
+
+        message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgray")
+        message_text = tk.Text(message_frame, wrap='word', bg="lightgray", font=("Arial", 10, "italic"), fg="black", padx=10, pady=5, height=1)
+        message_text.insert(tk.END, text)
+        message_text.config(state='disabled')
+        message_text.pack(fill="both", expand=True)
+
+        chat_area.window_create(tk.END, window=message_frame)
+        chat_area.insert(tk.END, "\n\n")
+        chat_area.config(state='disabled')
+
+        ChatApp.update_text_widget_height(message_text, chat_area)
+
+    @staticmethod
+    def update_response_text(text_widget, text, chat_area):
+        text_widget.config(state='normal')
+
+        pattern = r"```(?:python)?\n(.*?)\n```"
+        parts = re.split(pattern, text, flags=re.DOTALL)
+
+        text_widget.delete("1.0", tk.END)
+
+        for i, part in enumerate(parts):
+            if i % 2 == 0:
+                text_widget.insert(tk.END, part)
+            else:
+                start_index = text_widget.index(tk.END)
+                highlight_code(text_widget, part, start_index)
+
+        text_widget.config(state='disabled')
+        num_lines = text_widget.count("1.0", tk.END, "displaylines")[0]
+        text_widget.config(height=num_lines)
+        chat_area.yview_moveto(1.0)
+
+    @staticmethod
+    def update_text_widget_height(text_widget, chat_area):
+        font = tkFont.Font(font=text_widget.cget("font"))
+        char_width = font.measure('0')
+        chat_area_width = chat_area.winfo_width()
+        max_chars_per_line = chat_area_width // char_width
+        text_content = text_widget.get("1.0", "end-1c")
+        num_lines = (len(text_content) + max_chars_per_line - 1) // max_chars_per_line
+        text_widget.config(height=num_lines)
+        chat_area.yview_moveto(1.0)
+
+    def on_mousewheel(self, event):
+        if platform.system() == "Windows":
+            self.chat_area.yview_scroll(int(-1*(event.delta/120)), "units")
+        elif platform.system() == "Linux":
+            if event.num == 4:
+                self.chat_area.yview_scroll(-1, "units")
+            elif event.num == 5:
+                self.chat_area.yview_scroll(1, "units")
 
 def start_asyncio_loop():
     global event_loop
@@ -155,62 +223,18 @@ def start_asyncio_loop():
     asyncio.set_event_loop(event_loop)
     event_loop.run_forever()
 
-def send_message(event, args, session_id):
-    if event.state == 17 and event.keysym == 'Return':  # Shift + Enter
-        message_entry.insert(tk.END, '\n')
-    elif (event is None or event.state == 16) and event.keysym == 'Return':  # Enter without Shift
-        prompt = message_entry.get("1.0", tk.END).strip()
-        if prompt:
-            message_entry.delete("1.0", tk.END)
-            try:
-                uri = f"ws://{args.server}:{args.port}/stream/{session_id}"
-                asyncio.run_coroutine_threadsafe(stream_tokens(uri, prompt, chat_area, app), event_loop)
-            except Exception as e:
-                traceback.print_exc()
-                add_system_message(chat_area, f"Failed to send message: {e}")
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--server', action='store', default="localhost")
     parser.add_argument('--port', action='store', default="8000")
     args = parser.parse_args()
 
-    # Setup the asyncio event loop in a separate thread
     loop_thread = threading.Thread(target=start_asyncio_loop, daemon=True)
     loop_thread.start()
-
-    # Tkinter setup
-    app = tk.Tk()
-    app.title("Turbo-Genius Chat Interface")
 
     session_response = requests.get(f"http://{args.server}:{args.port}/session")
     session_id = session_response.json()
 
-    chat_area = scrolledtext.ScrolledText(app, height=20, width=90)
-    chat_area.grid(row=1, column=1, columnspan=2, sticky='nsew')
-    chat_area.config(state='disabled')
-
-    # Input field and send button
-    input_frame = tk.Frame(app)
-    input_frame.grid(row=2, column=1, columnspan=2, sticky='ew')
-
-    message_entry = tk.Text(input_frame, height=3)
-    message_entry.grid(row=0, column=0, sticky='ew')
-    message_entry.focus_set()
-
-    send_button = tk.Button(input_frame, text="Send", command=lambda args=args, session_id=session_id: send_message(None, args, session_id))
-    send_button.grid(row=0, column=1, sticky='ew')
-
-    # Make the input field and send button expand with the window
-    app.grid_columnconfigure(1, weight=1)
-    app.grid_rowconfigure(1, weight=10)  # More weight for the chat area
-    app.grid_rowconfigure(2, weight=1)  # Less weight for the input frame
-    input_frame.grid_columnconfigure(0, weight=1)
-
-    # Add padding columns
-    app.grid_columnconfigure(0, weight=1)
-    app.grid_columnconfigure(3, weight=1)
-
-    app.bind('<Return>', lambda event, args=args, session_id=session_id: send_message(event, args, session_id))
-
-    app.mainloop()
+    root = tk.Tk()
+    app = ChatApp(root, args.server, args.port, session_id)
+    root.mainloop()
