@@ -120,9 +120,14 @@ async def get_session():
     session = session_manager.get_new_session()
     return session.session_id
 
-@app.get("/sessions")
-async def get_sessions():
-    sessions = session_manager.get_sessions()
+@app.get("/session/{session_id}")
+async def get_session(session_id: int):
+    session = session_manager.get_session(session_id)
+    return session
+
+@app.get("/session-list")
+async def get_session_list():
+    sessions = session_manager.get_session_list()
     return sessions
 
 

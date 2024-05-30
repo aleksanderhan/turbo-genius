@@ -1,4 +1,3 @@
-import tkinter as tk
 import argparse
 import requests
 import threading
@@ -7,9 +6,11 @@ import websockets
 import time
 import traceback
 import re
-import tkinter.font as tkFont
 import platform
+import tkinter as tk
+import tkinter.font as tkFont
 from tkinter import scrolledtext
+from tkinter import messagebox
 from pygments import highlight
 from pygments.lexers import PythonLexer
 from pygments.styles import get_style_by_name
@@ -81,32 +82,27 @@ async def stream_tokens(uri, prompt, chat_area, app):
         app.after(0, lambda: ChatApp.add_system_message(chat_area, f"WebSocket connection failed: {e}"))
 
 class ChatApp:
-    def __init__(self, root, server, port, session_id):
+    def __init__(self, root, server, port):
         self.root = root
         self.server = server
         self.port = port
-        self.session_id = session_id
 
-        self.root.title("Chat Interface")
+        self.root.title("Turbo-Genius chat interface")
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=0)
         self.root.grid_columnconfigure(2, weight=1)
 
-        self.sidebar_frame = tk.Frame(root, bg="lightgray", width=200)
-        self.sidebar_frame.grid(row=0, column=0, sticky="ns")
+        self.sidebar_frame = tk.Frame(root, bg="lightgray", width=400)
+        self.sidebar_frame.grid(row=0, column=0, sticky="nsw")
         self.sidebar_frame.grid_propagate(False)
-
-        for i in range(10):
-            label = tk.Label(self.sidebar_frame, text=f"Label {i+1}", bg="lightgray", font=("Arial", 12))
-            label.grid(row=i, column=0, padx=5, pady=5, sticky="w")
 
         self.center_frame = tk.Frame(root)
         self.center_frame.grid(row=0, column=1, sticky="nsew")
         self.center_frame.grid_rowconfigure(0, weight=1)
         self.center_frame.grid_columnconfigure(0, weight=1)
 
-        self.chat_area = scrolledtext.ScrolledText(self.center_frame, width=75)
+        self.chat_area = scrolledtext.ScrolledText(self.center_frame, width=80)
         self.chat_area.grid(row=0, column=0, sticky="nsew")
         self.chat_area.config(state='disabled')
 
@@ -130,6 +126,22 @@ class ChatApp:
         self.send_button.pack(side="right")
 
         self.root.bind('<Return>', self.send_message)
+
+        session_response = requests.get(f"http://{self.server}:{self.port}/session")
+        self.session_id = session_response.json() # Active session
+
+        sessions_response = requests.get(f"http://{self.server}:{self.port}/session-list")
+        sessions = sessions_response.json()
+        for i, session in enumerate(reversed(sessions)):
+            session_title = session["title"]
+            label = tk.Label(self.sidebar_frame, text=session_title, bg="lightgray", font=("Arial", 12))
+            label.grid(row=i, column=0, padx=5, pady=5, sticky="w")
+            label.bind("<Button-1>", lambda event, label_text=label.cget("text"): self.on_label_click(event, label_text))
+
+    def on_label_click(self, event, label_text):
+        print(f"Clicked on {label_text}")
+        # You can perform any action here. For example, displaying a message box:
+        messagebox.showinfo("Label Clicked", f"You clicked on {label_text}")
 
     def send_message(self, event=None):
         prompt = self.message_entry.get("1.0", tk.END).strip()
@@ -232,9 +244,6 @@ if __name__ == "__main__":
     loop_thread = threading.Thread(target=start_asyncio_loop, daemon=True)
     loop_thread.start()
 
-    session_response = requests.get(f"http://{args.server}:{args.port}/session")
-    session_id = session_response.json()
-
     root = tk.Tk()
-    app = ChatApp(root, args.server, args.port, session_id)
+    app = ChatApp(root, args.server, args.port)
     root.mainloop()

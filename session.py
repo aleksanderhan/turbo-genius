@@ -24,8 +24,11 @@ class SessionManager:
     def __init__(self):
         self.sessions = {}
 
-    def get_sessions(self):
-        return self.sessions
+    def get_session(self, session_id):
+        return self.sessions[session_id]
+
+    def get_session_list(self):
+        return [{"id": session.session_id, "title": session.title} for session in self.sessions.values()]
     
     def get_new_session(self):
         session_id = len(self.sessions)
