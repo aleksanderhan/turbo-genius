@@ -134,14 +134,25 @@ class ChatApp:
         sessions = sessions_response.json()
         for i, session in enumerate(reversed(sessions)):
             session_title = session["title"]
+            session_id = session["id"]
             label = tk.Label(self.sidebar_frame, text=session_title, bg="lightgray", font=("Arial", 12))
-            label.grid(row=i, column=0, padx=5, pady=5, sticky="w")
-            label.bind("<Button-1>", lambda event, label_text=label.cget("text"): self.on_label_click(event, label_text))
+            label.grid(row=i+1, column=0, padx=5, pady=5, sticky="w")
+            label.bind("<Button-1>", lambda event, session_id=session_id: self.load_chat(event, session_id))
 
-    def on_label_click(self, event, label_text):
-        print(f"Clicked on {label_text}")
-        # You can perform any action here. For example, displaying a message box:
-        messagebox.showinfo("Label Clicked", f"You clicked on {label_text}")
+    def load_chat(self, event, session_id):
+        self.chat_area.config(state='normal')
+        self.chat_area.delete("1.0", tk.END)
+        self.chat_area.config(state='disabled')
+        session_response = requests.get(f"http://{self.server}:{self.port}/session/{session_id}")
+        chat_data = session_response.json()
+        for message in chat_data["messages"]:
+            if message["role"] == "user":
+                ChatApp.add_user_message(self.chat_area, message["content"])
+            elif message["role"] == "assistant":
+                print(message)
+                ChatApp.add_assistant_message(self.chat_area, message["content"])
+        self.session_id = session_id
+
 
     def send_message(self, event=None):
         prompt = self.message_entry.get("1.0", tk.END).strip()
@@ -152,7 +163,7 @@ class ChatApp:
                 asyncio.run_coroutine_threadsafe(stream_tokens(uri, prompt, self.chat_area, self.root), event_loop)
             except Exception as e:
                 traceback.print_exc()
-                self.add_system_message(f"Failed to send message: {e}")
+                self.add_system_message(self.chat_area, f"Failed to send message: {e}")
 
     @staticmethod
     def add_user_message(chat_area, text):
@@ -170,6 +181,35 @@ class ChatApp:
         chat_area.config(state='disabled')
 
         ChatApp.update_text_widget_height(message_text, chat_area)
+
+    @staticmethod
+    def add_assistant_message(chat_area, text):
+        chat_area.config(state='normal')
+        chat_area.insert(tk.END, "\n\n")
+
+        message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgreen")
+        message_text = tk.Text(message_frame, wrap='word', bg="lightgreen", font=("Arial", 10, "normal"), fg="black", padx=10, pady=5, height=1)
+
+        # Regular expression to find code blocks
+        pattern = r"```(?:python)?\n(.*?)\n```"
+        parts = re.split(pattern, text, flags=re.DOTALL)
+
+        for i, part in enumerate(parts):
+            if i % 2 == 0:
+                message_text.insert(tk.END, part)
+            else:
+                start_index = message_text.index(tk.END)
+                highlight_code(message_text, part, start_index)
+
+        message_text.config(state='disabled')
+        message_text.pack(fill="both", expand=True)
+
+        chat_area.window_create(tk.END, window=message_frame)
+        chat_area.insert(tk.END, "\n\n")
+        chat_area.config(state='disabled')
+
+        ChatApp.update_text_widget_height(message_text, chat_area)
+
 
     @staticmethod
     def add_system_message(chat_area, text):
