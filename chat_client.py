@@ -49,7 +49,7 @@ def highlight_code(text_widget, code, start_index):
     highlight(code, lexer, formatter)
 
 async def stream_tokens(uri, prompt, chat_area, app):
-    app.after(0, lambda: ChatApp.add_user_message(chat_area, prompt))
+    app.after(0, lambda: ChatApp.add_message(chat_area, prompt, "user"))
 
     response_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgreen")
     response_text = tk.Text(response_frame, wrap='word', bg="lightgreen", font=("Arial", 10, "bold"), fg="black", padx=10, pady=5, height=1)
@@ -64,22 +64,22 @@ async def stream_tokens(uri, prompt, chat_area, app):
             await websocket.send(prompt)
             t0 = time.time()
             num_token = 0
-            response_content = ""
+            content = ""
             try:
                 while True:
                     token = await websocket.recv()
-                    response_content += token
-                    app.after(0, lambda t=response_content: ChatApp.update_response_text(response_text, t, chat_area))
+                    content += token
+                    app.after(0, lambda text=content: ChatApp.update_assistant_message(response_text, text, chat_area))
                     num_token += 1
             except websockets.exceptions.ConnectionClosed:
                 print("Connection closed")
             finally:
                 dt = time.time() - t0
                 stats = f"Time elapsed: {dt:.2f} seconds, Number of tokens/sec: {num_token/dt:.2f}, Number of tokens: {num_token}"
-                app.after(0, lambda: ChatApp.add_system_message(chat_area, stats))
+                app.after(0, lambda: ChatApp.add_message(chat_area, stats, "system"))
     except Exception as e:
         traceback.print_exc()
-        app.after(0, lambda: ChatApp.add_system_message(chat_area, f"WebSocket connection failed: {e}"))
+        app.after(0, lambda: ChatApp.add_message(chat_area, f"WebSocket connection failed: {e}", "system"))
 
 class ChatApp:
     def __init__(self, root, server, port):
@@ -93,7 +93,7 @@ class ChatApp:
         self.root.grid_columnconfigure(1, weight=0)
         self.root.grid_columnconfigure(2, weight=1)
 
-        self.sidebar_frame = tk.Frame(root, bg="lightgray", width=400)
+        self.sidebar_frame = tk.Frame(root, bg="darkgray", width=400)
         self.sidebar_frame.grid(row=0, column=0, sticky="nsw")
         self.sidebar_frame.grid_propagate(False)
 
@@ -147,10 +147,10 @@ class ChatApp:
         chat_data = session_response.json()
         for message in chat_data["messages"]:
             if message["role"] == "user":
-                ChatApp.add_user_message(self.chat_area, message["content"])
+                ChatApp.add_message(self.chat_area, message["content"], "user")
             elif message["role"] == "assistant":
                 print(message)
-                ChatApp.add_assistant_message(self.chat_area, message["content"])
+                ChatApp.add_message(self.chat_area, message["content"], "assistant")
         self.session_id = session_id
 
 
@@ -166,29 +166,22 @@ class ChatApp:
                 self.add_system_message(self.chat_area, f"Failed to send message: {e}")
 
     @staticmethod
-    def add_user_message(chat_area, text):
+    def add_message(chat_area, text, type):
         chat_area.config(state='normal')
         chat_area.insert(tk.END, "\n\n")
 
-        message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightblue")
-        message_text = tk.Text(message_frame, wrap='word', bg="lightblue", font=("Arial", 10, "normal"), fg="black", padx=10, pady=5, height=1)
-        message_text.insert(tk.END, text)
-        message_text.config(state='disabled')
-        message_text.pack(fill="both", expand=True)
+        if type == "system":
+            bg = "lightgray"
+            font = ("Arial", 10, "italic")
+        elif type == "user":
+            bg = "lightblue"
+            font = ("Arial", 10, "normal")
+        elif type == "assistant":
+            bg = "lightgreen"
+            font = ("Arial", 10, "bold")
 
-        chat_area.window_create(tk.END, window=message_frame)
-        chat_area.insert(tk.END, "\n\n")
-        chat_area.config(state='disabled')
-
-        ChatApp.update_text_widget_height(message_text, chat_area)
-
-    @staticmethod
-    def add_assistant_message(chat_area, text):
-        chat_area.config(state='normal')
-        chat_area.insert(tk.END, "\n\n")
-
-        message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgreen")
-        message_text = tk.Text(message_frame, wrap='word', bg="lightgreen", font=("Arial", 10, "normal"), fg="black", padx=10, pady=5, height=1)
+        message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg=bg)
+        message_text = tk.Text(message_frame, wrap='word', bg=bg, font=font, fg="black", padx=10, pady=5, height=1)
 
         # Regular expression to find code blocks
         pattern = r"```(?:python)?\n(.*?)\n```"
@@ -210,26 +203,8 @@ class ChatApp:
 
         ChatApp.update_text_widget_height(message_text, chat_area)
 
-
     @staticmethod
-    def add_system_message(chat_area, text):
-        chat_area.config(state='normal')
-        chat_area.insert(tk.END, "\n\n")
-
-        message_frame = tk.Frame(chat_area, padx=10, pady=5, bd=1, relief="solid", bg="lightgray")
-        message_text = tk.Text(message_frame, wrap='word', bg="lightgray", font=("Arial", 10, "italic"), fg="black", padx=10, pady=5, height=1)
-        message_text.insert(tk.END, text)
-        message_text.config(state='disabled')
-        message_text.pack(fill="both", expand=True)
-
-        chat_area.window_create(tk.END, window=message_frame)
-        chat_area.insert(tk.END, "\n\n")
-        chat_area.config(state='disabled')
-
-        ChatApp.update_text_widget_height(message_text, chat_area)
-
-    @staticmethod
-    def update_response_text(text_widget, text, chat_area):
+    def update_assistant_message(text_widget, text, chat_area):
         text_widget.config(state='normal')
 
         pattern = r"```(?:python)?\n(.*?)\n```"
