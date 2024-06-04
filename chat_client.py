@@ -30,6 +30,16 @@ class ChatApp:
                 finally:
                     dt = time.time() - t0
                     print(f"Time elapsed: {dt:.2f} seconds, Number of tokens/sec: {num_token/dt:.2f}, Number of tokens: {num_token}")
+                    if self.session_titles[self.session_id] == "New session":
+                        try:
+                            response = requests.get(f"http://{self.server}:{self.port}/session/{self.session_id}/title")
+                            title = response.text
+                            escaped_title = json.dumps(title)
+                            self.session_titles[self.session_id] = title
+                            window.evaluate_js(f'updateSessionTitle("{self.session_id}", {escaped_title})')
+                        except Exception as e:
+                            traceback.print_exc()
+                            self.send_to_webview("system", f"Failed to get title: {e}")
         except Exception as e:
             traceback.print_exc()
             self.send_to_webview("system", f"WebSocket connection failed: {e}")
@@ -40,16 +50,14 @@ class ChatApp:
 
     def send_message(self, message):
         if self.session_id is None:
-            response = requests.get(f"http://{self.server}:{self.port}/session")
-            self.session_id = response.json()
-            window.evaluate_js(f'addSession("{self.session_id}", "New session")')
-            self.session_titles[self.session_id] = "New session"
-        elif self.session_titles[self.session_id] == "New session":
-            response = requests.get(f"http://{self.server}:{self.port}/session/{self.session_id}/title")
-            title = response.text
-            escaped_title = json.dumps(title)
-            self.session_titles[self.session_id] = title
-            window.evaluate_js(f'updateSessionTitle("{self.session_id}", {escaped_title})')
+            try:
+                response = requests.get(f"http://{self.server}:{self.port}/session")
+                self.session_id = response.json()
+                window.evaluate_js(f'addSession("{self.session_id}", "New session")')
+                self.session_titles[self.session_id] = "New session"
+            except Exception as e:
+                traceback.print_exc()
+                self.send_to_webview("system", f"Failed to get session: {e}")
 
         prompt = message.strip()
         if prompt:
@@ -61,20 +69,40 @@ class ChatApp:
                 self.send_to_webview("system", f"Failed to send message: {e}")
 
     def initialize(self):
-        response = requests.get(f"http://{self.server}:{self.port}/session-list")
-        sessions = response.json()
-        for session in sessions:
-            self.session_titles[session["id"]] = session["title"]
-            window.evaluate_js(f'addSession("{session["id"]}", "{session["title"]}")')
+        try:
+            response = requests.get(f"http://{self.server}:{self.port}/session-list")
+            sessions = response.json()
+            for session in sessions:
+                self.session_titles[session["id"]] = session["title"]
+                window.evaluate_js(f'addSession("{session["id"]}", "{session["title"]}")')
+        except Exception as e:
+            traceback.print_exc()
+            self.send_to_webview("system", f"Failed to initialize sessions: {e}")
 
     def load_session(self, session_id):
         if session_id != self.session_id:
-            response = requests.get(f"http://{self.server}:{self.port}/session/{session_id}")
-            chat_data = response.json()
-            for message in chat_data["messages"]:
-                if message["role"] == "user" or message["role"] == "assistant":
-                    self.send_to_webview(message["role"], message["content"])
-            self.session_id = session_id
+            try:
+                response = requests.get(f"http://{self.server}:{self.port}/session/{session_id}")
+                chat_data = response.json()
+                for message in chat_data["messages"]:
+                    if message["role"] == "user" or message["role"] == "assistant":
+                        self.send_to_webview(message["role"], message["content"])
+                self.session_id = session_id
+            except Exception as e:
+                traceback.print_exc()
+                self.send_to_webview("system", f"Failed to load session: {e}")
+
+    def reset_session(self):
+        self.session_id = None
+
+    def delete_session(self, session_id):
+        try:
+            requests.delete(f"http://{self.server}:{self.port}/session/{session_id}")
+            if session_id == self.session_id:
+                self.reset_session()
+        except Exception as e:
+            traceback.print_exc()
+            self.send_to_webview("system", f"Failed to delete session: {e}")
 
 def start_asyncio_loop():
     global event_loop

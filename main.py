@@ -101,7 +101,6 @@ def make_prompt(session: Session):
             tokenize=False
         )
 
-
 @app.websocket("/stream/{session_id}")
 async def stream(websocket: WebSocket, session_id: int):
     await websocket.accept()
