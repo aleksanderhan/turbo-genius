@@ -12,6 +12,7 @@ class ChatApp:
         self.server = server
         self.port = port
         self.session_id = None
+        self.session_titles = {}
 
     async def stream_tokens(self, uri, prompt):
         try:
@@ -41,7 +42,14 @@ class ChatApp:
         if self.session_id is None:
             response = requests.get(f"http://{self.server}:{self.port}/session")
             self.session_id = response.json()
-            window.evaluate_js(f'addSession("{self.session_id}")')
+            window.evaluate_js(f'addSession("{self.session_id}", "New session")')
+            self.session_titles[self.session_id] = "New session"
+        elif self.session_titles[self.session_id] == "New session":
+            response = requests.get(f"http://{self.server}:{self.port}/session/{self.session_id}/title")
+            title = response.text
+            escaped_title = json.dumps(title)
+            self.session_titles[self.session_id] = title
+            window.evaluate_js(f'updateSessionTitle("{self.session_id}", {escaped_title})')
 
         prompt = message.strip()
         if prompt:
@@ -53,17 +61,16 @@ class ChatApp:
                 self.send_to_webview("system", f"Failed to send message: {e}")
 
     def initialize(self):
-        sessions_response = requests.get(f"http://{self.server}:{self.port}/session-list")
-        sessions = sessions_response.json()
+        response = requests.get(f"http://{self.server}:{self.port}/session-list")
+        sessions = response.json()
         for session in sessions:
-            session_title = session["title"]
-            session_id = session["id"]
-            window.evaluate_js(f'addSession("{session_id}")')
+            self.session_titles[session["id"]] = session["title"]
+            window.evaluate_js(f'addSession("{session["id"]}", "{session["title"]}")')
 
     def load_session(self, session_id):
         if session_id != self.session_id:
-            session_response = requests.get(f"http://{self.server}:{self.port}/session/{session_id}")
-            chat_data = session_response.json()
+            response = requests.get(f"http://{self.server}:{self.port}/session/{session_id}")
+            chat_data = response.json()
             for message in chat_data["messages"]:
                 if message["role"] == "user" or message["role"] == "assistant":
                     self.send_to_webview(message["role"], message["content"])
@@ -90,3 +97,4 @@ if __name__ == "__main__":
 
     window = webview.create_window("Turbo-Genius Chat", "index.html", js_api=app, text_select=True)
     webview.start(app.initialize)
+

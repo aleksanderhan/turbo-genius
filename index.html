@@ -203,15 +203,27 @@
             currentAssistantMessageId = null;
         }
 
-        function addSession(sessionId) {
+        function addSession(sessionId, sessionTitle) {
             const sessionList = document.getElementById('session-list');
             const sessionItem = document.createElement('li');
-            sessionItem.textContent = "Session " + sessionId;
+            sessionItem.textContent = sessionTitle;
+            sessionItem.dataset.sessionId = sessionId;
             sessionItem.addEventListener('click', function() {
                 clearChat();
                 window.pywebview.api.load_session(sessionId);
             });
             sessionList.insertBefore(sessionItem, sessionList.firstChild);
+        }
+
+        function updateSessionTitle(sessionId, newTitle) {
+            const sessionList = document.getElementById('session-list');
+            const sessionItems = sessionList.getElementsByTagName('li');
+            for (let item of sessionItems) {
+                if (item.getAttribute('data-session-id') === sessionId) {
+                    item.textContent = newTitle;
+                    break;
+                }
+            }
         }
     </script>
 </body>

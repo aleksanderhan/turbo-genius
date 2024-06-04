@@ -2,7 +2,7 @@
 class Session:
     def __init__(self, session_id):
         self.session_id = session_id
-        self.title = f"Session {session_id}"
+        self.title = None
         self.messages = [
             {"role": "system", "content": "Help the user with anything they want!"},
         ]
