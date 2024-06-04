@@ -4,15 +4,15 @@ import uvicorn
 import gc
 import asyncio
 import argparse
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Depends
 from threading import Thread
+from sqlalchemy.orm import Session as DBSession
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextIteratorStreamer, pipeline
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
 from peft import LoraConfig, get_peft_model
 
-from session import Session, SessionManager
-
+from session import Session, SessionManager, get_db, SessionDB
 
 app = FastAPI()
 
@@ -41,7 +41,7 @@ tokenizer = AutoTokenizer.from_pretrained(args.model)
 
 terminators = [
     tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids("<|eot_id|>"),
+    tokenizer.convert_tokens_to_ids(""),
 ]
 
 summarizer = pipeline(task="summarization", model="facebook/bart-large", min_length=2, max_length=8)
@@ -90,7 +90,7 @@ def make_prompt(session: Session):
         tokenize=True
     )
     num_tokens = inputs.shape[-1]
-    print(f"Number of tokens (session {session.session_id}): ", num_tokens)
+    print(f"Number of tokens (session {session.id}): ", num_tokens)
     if num_tokens > int(config.max_position_embeddings * 0.9):
         session.truncate_messages()
         return make_prompt(session)
@@ -102,11 +102,15 @@ def make_prompt(session: Session):
         )
 
 @app.websocket("/stream/{session_id}")
-async def stream(websocket: WebSocket, session_id: int):
+async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(get_db)):
     await websocket.accept()
     message = await websocket.receive_text()
-    session = session_manager.get_session(session_id)
+    session = session_manager.get_session(session_id, db)
     session.add_user_message(message)
+    db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
+    db_session.messages = str(session.messages)
+    db.add(db_session)
+    db.commit()
     prompt = make_prompt(session)
     completion = ""
     try:
@@ -120,33 +124,41 @@ async def stream(websocket: WebSocket, session_id: int):
         print(f"Error: {e}")
     finally:
         session.add_assistant_message(completion)
+        db_session.messages = str(session.messages)
+        db.add(db_session)
+        db.commit()
         await websocket.close()
 
 @app.get("/session")
-async def get_session():
-    session = session_manager.get_new_session()
-    return session.session_id
+async def get_session(db: DBSession = Depends(get_db)):
+    session = session_manager.get_new_session(db)
+    return session.id
 
 @app.get("/session/{session_id}")
-async def get_session(session_id: int):
-    session = session_manager.get_session(session_id)
+async def get_session(session_id: int, db: DBSession = Depends(get_db)):
+    session = session_manager.get_session(session_id, db)
     return session
 
 @app.get("/session-list")
-async def get_session_list():
-    sessions = session_manager.get_session_list()
+async def get_session_list(db: DBSession = Depends(get_db)):
+    sessions = session_manager.get_session_list(db)
     return sessions
 
 @app.delete("/session/{session_id}")
-async def delete_session(session_id: int):
-    session_manager.remove_session(session_id)
+async def delete_session(session_id: int, db: DBSession = Depends(get_db)):
+    session_manager.remove_session(session_id, db)
+    db.commit()
     return
 
 @app.get("/session/{session_id}/title")
-async def get_session_title(session_id: int):
-    session = session_manager.get_session(session_id)
+async def get_session_title(session_id: int, db: DBSession = Depends(get_db)):
+    session = session_manager.get_session(session_id, db)
     summary_response = await make_title(session)
     session.title = summary_response[0]["summary_text"]
+    db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
+    db_session.title = session.title
+    db.add(db_session)
+    db.commit()
     return session.title
 
 if __name__ == "__main__":

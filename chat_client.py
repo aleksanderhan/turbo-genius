@@ -52,7 +52,7 @@ class ChatApp:
         if self.session_id is None:
             try:
                 response = requests.get(f"http://{self.server}:{self.port}/session")
-                self.session_id = response.json()
+                self.session_id = str(response.json())
                 window.evaluate_js(f'addSession("{self.session_id}", "New session")')
                 self.session_titles[self.session_id] = "New session"
             except Exception as e:
@@ -73,7 +73,7 @@ class ChatApp:
             response = requests.get(f"http://{self.server}:{self.port}/session-list")
             sessions = response.json()
             for session in sessions:
-                self.session_titles[session["id"]] = session["title"]
+                self.session_titles[str(session["id"])] = session["title"]
                 window.evaluate_js(f'addSession("{session["id"]}", "{session["title"]}")')
         except Exception as e:
             traceback.print_exc()

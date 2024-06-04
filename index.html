@@ -216,7 +216,7 @@
 
         function parseMessageContent(message) {
             // Regular expression to detect triple backtick code blocks
-            const codeBlockRegex = /```(.*?)```/gs;
+            const codeBlockRegex = /```(?:python)?\n(.*?)\n```/gs;
 
             return message.replace(codeBlockRegex, (match, p1) => {
                 // Escape HTML characters in the code block content
