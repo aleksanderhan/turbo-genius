@@ -3,9 +3,7 @@ class Session:
     def __init__(self, session_id):
         self.session_id = session_id
         self.title = None
-        self.messages = [
-            {"role": "system", "content": "Help the user with anything they want!"},
-        ]
+        self.messages = []
 
     def add_user_message(self, message):
         self.messages.append({"role": "user", "content": message})
@@ -17,7 +15,7 @@ class Session:
         return self.messages
     
     def truncate_messages(self):
-        self.messages = [self.messages[0]] + self.messages[3:]
+        self.messages = self.messages[2:]
     
 
 class SessionManager:

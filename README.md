@@ -1,8 +1,10 @@
 # Turbo-Genius
-
 Streaming local llm server and client.
 
+![Turbo-Genius Chat Client](assets/chat_client.gif)
+
 ## Server
+Run any text-generation model from huggingface
 
 ### Run in docker
     docker build . --tag="turbo-genius"
@@ -20,5 +22,3 @@ Streaming local llm server and client.
 
 ### Chat client desktop app
     python chat_client.py --server <server> --port <port>
-
-![Turbo-Genius Chat Client](assets/chat_client.gif)
