@@ -26,7 +26,7 @@ class SessionManager:
 
     def get_session(self, session_id):
         return self.sessions[session_id]
-
+    
     def get_session_list(self):
         return [{"id": session.session_id, "title": session.title} for session in self.sessions.values()]
     

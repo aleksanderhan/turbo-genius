@@ -3,14 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <title>Turbo-Genius Chat</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha384-k6RqeWeci5ZR/Lv4MR0sA0FfDOMrQauK/zjRSAP5Xxt90Aq5gUPotFYpTbiJffG5" crossorigin="anonymous">
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
             display: flex;
-            flex-direction: column;
             height: 100vh;
+        }
+        #sidebar {
+            width: 200px;
+            background-color: #333;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+        }
+        #sidebar h2 {
+            margin: 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+            text-align: center;
+        }
+        #session-list {
+            list-style: none;
+            padding: 0;
+            flex: 1;
+            overflow-y: auto;
+        }
+        #session-list li {
+            padding: 10px;
+            cursor: pointer;
+        }
+        #session-list li:hover {
+            background-color: #444;
+        }
+        #main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
         #chat {
             flex: 1;
@@ -37,7 +69,7 @@
             margin: 5px 0;
             border-radius: 5px;
             word-wrap: break-word;
-            user-select: text; 
+            user-select: text;
         }
         .user {
             background-color: #d1e7dd;
@@ -53,15 +85,23 @@
             font-size: 16px;
             background-color: transparent;
             border: none;
-            user-select: text; 
+            user-select: text;
         }
     </style>
 </head>
 <body>
-    <div id="chat"></div>
-    <div id="input-area">
-        <textarea id="message-input" rows="3" placeholder="Type your message here..."></textarea>
-        <button id="send-button">Send</button>
+    <div id="sidebar">
+        <h2>Sessions</h2>
+        <ul id="session-list">
+            <!-- Session items will be added here dynamically -->
+        </ul>
+    </div>
+    <div id="main-content">
+        <div id="chat"></div>
+        <div id="input-area">
+            <textarea id="message-input" rows="3" placeholder="Type your message here..."></textarea>
+            <button id="send-button">Send</button>
+        </div>
     </div>
     <script>
         let currentAssistantMessageId = null;
@@ -113,6 +153,23 @@
             }
 
             chat.scrollTop = chat.scrollHeight;
+        }
+
+        function clearChat() {
+            const chat = document.getElementById('chat');
+            chat.innerHTML = '';
+            currentAssistantMessageId = null;
+        }
+
+        function addSession(sessionId) {
+            const sessionList = document.getElementById('session-list');
+            const sessionItem = document.createElement('li');
+            sessionItem.textContent = "Session " + sessionId;
+            sessionItem.addEventListener('click', function() {
+                clearChat();
+                window.pywebview.api.load_session(sessionId);
+            });
+            sessionList.insertBefore(sessionItem, sessionList.firstChild);
         }
     </script>
 </body>
