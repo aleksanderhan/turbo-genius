@@ -64,7 +64,6 @@ class ChatApp:
         if session_id != self.session_id:
             session_response = requests.get(f"http://{self.server}:{self.port}/session/{session_id}")
             chat_data = session_response.json()
-            print(chat_data)
             for message in chat_data["messages"]:
                 if message["role"] == "user" or message["role"] == "assistant":
                     self.send_to_webview(message["role"], message["content"])

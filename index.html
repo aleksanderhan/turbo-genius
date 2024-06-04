@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Turbo-Genius Chat</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha384-k6RqeWeci5ZR/Lv4MR0sA0FfDOMrQauK/zjRSAP5Xxt90Aq5gUPotFYpTbiJffG5" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/themes/prism.min.css">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -87,6 +88,16 @@
             border: none;
             user-select: text;
         }
+        pre {
+            background: #f5f2f0;
+            padding: 10px;
+            border-radius: 5px;
+            overflow: auto;
+        }
+
+        code {
+            font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+        }
     </style>
 </head>
 <body>
@@ -103,6 +114,8 @@
             <button id="send-button">Send</button>
         </div>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/autoloader/prism-autoloader.min.js"></script>
     <script>
         let currentAssistantMessageId = null;
 
@@ -132,10 +145,14 @@
             if (role === 'assistant' && currentAssistantMessageId) {
                 messageDiv = document.getElementById(currentAssistantMessageId);
                 if (messageDiv) {
-                    messageDiv.querySelector('.message-content').textContent += message;
+                    assistantMessageBuffer += message;
+                    messageDiv.querySelector('.message-content').innerHTML = parseMessageContent(assistantMessageBuffer);
                 } else {
                     currentAssistantMessageId = null;
+                    assistantMessageBuffer = '';
                 }
+            } else if (role === "user") {
+                currentAssistantMessageId = null;
             }
 
             if (!messageDiv) {
@@ -147,13 +164,33 @@
                 }
                 const contentDiv = document.createElement('div');
                 contentDiv.classList.add('message-content');
-                contentDiv.textContent = message;
+                if (role === 'assistant') {
+                    assistantMessageBuffer = message;
+                    contentDiv.innerHTML = parseMessageContent(assistantMessageBuffer);
+                } else {
+                    contentDiv.innerHTML = parseMessageContent(message);
+                }
                 messageDiv.appendChild(contentDiv);
                 chat.appendChild(messageDiv);
             }
 
             chat.scrollTop = chat.scrollHeight;
+
+            // Highlight the code blocks
+            Prism.highlightAllUnder(chat);
         }
+
+        function parseMessageContent(message) {
+            // Regular expression to detect triple backtick code blocks
+            const codeBlockRegex = /```(.*?)```/gs;
+
+            return message.replace(codeBlockRegex, (match, p1) => {
+                // Escape HTML characters in the code block content
+                const escapedCode = p1.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                return `<pre><code class="language-javascript">${escapedCode}</code></pre>`;
+            });
+        }
+
 
         function clearChat() {
             const chat = document.getElementById('chat');
