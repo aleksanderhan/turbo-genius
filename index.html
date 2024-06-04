@@ -38,11 +38,34 @@
             overflow-y: auto;
         }
         #session-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             padding: 10px;
             cursor: pointer;
         }
         #session-list li:hover {
             background-color: #444;
+        }
+        .delete-button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .delete-button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 18px; /* Increase font size for a larger icon */
+            padding: 5px 10px;  /* Add padding for better clickable area */
+            margin-left: 5px; /* Add margin for spacing */
+            border-radius: 3px; /* Optional: Rounded corners */
+        }
+        .delete-button:hover i {
+            color: red;
         }
         #main-content {
             flex: 1;
@@ -110,6 +133,7 @@
         <ul id="session-list">
             <!-- Session items will be added here dynamically -->
         </ul>
+        <button id="new-session-button">New Session</button>
     </div>
     <div id="main-content">
         <div id="chat"></div>
@@ -127,6 +151,11 @@
                 event.preventDefault();
                 sendMessage();
             }
+        });
+        document.getElementById('new-session-button').addEventListener('click', function() {
+            clearChat();
+            window.pywebview.api.reset_session();
+            currentAssistantMessageId = null;
         });
 
         function sendMessage() {
@@ -191,11 +220,10 @@
 
             return message.replace(codeBlockRegex, (match, p1) => {
                 // Escape HTML characters in the code block content
-                const escapedCode = p1.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                const escapedCode = p1.trim().replace(/</g, "&lt;").replace(/>/g, "&gt;");
                 return `<pre><code class="language-javascript">${escapedCode}</code></pre>`;
             });
         }
-
 
         function clearChat() {
             const chat = document.getElementById('chat');
@@ -206,21 +234,41 @@
         function addSession(sessionId, sessionTitle) {
             const sessionList = document.getElementById('session-list');
             const sessionItem = document.createElement('li');
-            sessionItem.textContent = sessionTitle;
-            sessionItem.dataset.sessionId = sessionId;
-            sessionItem.addEventListener('click', function() {
+            
+            // Add session title
+            const sessionTitleDiv = document.createElement('div');
+            sessionTitleDiv.textContent = sessionTitle;
+            sessionTitleDiv.style.flex = '1';
+            sessionTitleDiv.addEventListener('click', function() {
                 clearChat();
                 window.pywebview.api.load_session(sessionId);
             });
+
+            // Add delete button
+            const deleteButton = document.createElement('button');
+            const deleteIcon = document.createElement('i'); 
+            deleteIcon.classList.add('fas', 'fa-trash-alt'); // Add Font Awesome classes
+            deleteButton.appendChild(deleteIcon);
+            
+            deleteButton.classList.add('delete-button');
+            deleteButton.addEventListener('click', function(event) {
+                event.stopPropagation(); // Prevent the session from being loaded
+                window.pywebview.api.delete_session(sessionId);
+                sessionList.removeChild(sessionItem);
+            });
+
+            sessionItem.setAttribute('data-session-id', sessionId)
+            sessionItem.appendChild(sessionTitleDiv);
+            sessionItem.appendChild(deleteButton);
             sessionList.insertBefore(sessionItem, sessionList.firstChild);
         }
 
         function updateSessionTitle(sessionId, newTitle) {
             const sessionList = document.getElementById('session-list');
-            const sessionItems = sessionList.getElementsByTagName('li');
+            const sessionItems = Array.from(sessionList.getElementsByTagName('li')); // Convert to array
             for (let item of sessionItems) {
                 if (item.getAttribute('data-session-id') === sessionId) {
-                    item.textContent = newTitle;
+                    item.querySelector('div').textContent = newTitle;
                     break;
                 }
             }

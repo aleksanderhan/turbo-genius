@@ -35,7 +35,7 @@ class ChatApp:
                             response = requests.get(f"http://{self.server}:{self.port}/session/{self.session_id}/title")
                             title = response.text
                             escaped_title = json.dumps(title)
-                            self.session_titles[self.session_id] = title
+                            self.session_titles[self.session_id] = escaped_title
                             window.evaluate_js(f'updateSessionTitle("{self.session_id}", {escaped_title})')
                         except Exception as e:
                             traceback.print_exc()
@@ -116,6 +116,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--server', action='store', default="localhost")
     parser.add_argument('--port', action='store', default="8000")
+    parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
     loop_thread = threading.Thread(target=start_asyncio_loop, daemon=True)
@@ -124,5 +125,5 @@ if __name__ == "__main__":
     app = ChatApp(args.server, args.port)
 
     window = webview.create_window("Turbo-Genius Chat", "index.html", js_api=app, text_select=True)
-    webview.start(app.initialize)
+    webview.start(app.initialize, debug=args.debug)
 

@@ -44,7 +44,7 @@ terminators = [
     tokenizer.convert_tokens_to_ids("<|eot_id|>"),
 ]
 
-summarizer = pipeline(task="summarization", model="google/flan-t5-small", min_length=2, max_length=8)
+summarizer = pipeline(task="summarization", model="facebook/bart-large", min_length=2, max_length=8)
 
 
 async def stream_tokens(streamer: TextIteratorStreamer):
@@ -147,7 +147,6 @@ async def get_session_title(session_id: int):
     session = session_manager.get_session(session_id)
     summary_response = await make_title(session)
     session.title = summary_response[0]["summary_text"]
-    print("session title: ", session.title)
     return session.title
 
 if __name__ == "__main__":
