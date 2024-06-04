@@ -11,7 +11,6 @@ bitsandbytes
 flash-attn
 fastapi
 uvicorn
-tensorrt
 huggingface_hub
 termcolor
 pygments
