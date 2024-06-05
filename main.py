@@ -7,10 +7,7 @@ import argparse
 from fastapi import FastAPI, WebSocket, Depends
 from threading import Thread
 from sqlalchemy.orm import Session as DBSession
-
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextIteratorStreamer, pipeline
-from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
-from peft import LoraConfig, get_peft_model
 
 from session import Session, SessionManager, get_db, SessionDB
 
