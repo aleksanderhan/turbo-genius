@@ -44,7 +44,7 @@ terminators = [
     tokenizer.convert_tokens_to_ids(""),
 ]
 
-summarizer = pipeline(task="summarization", model="facebook/bart-large", min_length=2, max_length=8)
+summarizer = pipeline(task="summarization", model="facebook/bart-large", min_length=2, max_length=10)
 
 
 async def stream_tokens(streamer: TextIteratorStreamer):
