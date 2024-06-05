@@ -78,7 +78,7 @@ async def generate_response(prompt: str):
     thread.join()
 
 async def make_title(session: Session):
-    messages = session.get_messages()[1:3]
+    messages = session.get_messages()
     prompt = "\n".join([message["content"] for message in messages])
     return summarizer(prompt)
 

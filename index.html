@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Turbo-Genius Chat</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha384-k6RqeWeci5ZR/Lv4MR0sA0FfDOMrQauK/zjRSAP5Xxt90Aq5gUPotFYpTbiJffG5" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/themes/prism.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/autoloader/prism-autoloader.min.js"></script>
@@ -43,29 +42,45 @@
             align-items: center;
             padding: 10px;
             cursor: pointer;
+            position: relative;
         }
         #session-list li:hover {
             background-color: #444;
         }
-        .delete-button {
-            background: none;
-            border: none;
-            color: white;
-            cursor: pointer;
-            font-size: 16px;
+        .session-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .delete-button {
-            background: none;
-            border: none;
-            color: white;
+        .dropdown {
             cursor: pointer;
-            font-size: 18px; /* Increase font size for a larger icon */
-            padding: 5px 10px;  /* Add padding for better clickable area */
-            margin-left: 5px; /* Add margin for spacing */
-            border-radius: 3px; /* Optional: Rounded corners */
+            position: relative;
         }
-        .delete-button:hover i {
-            color: red;
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 10px;
+            background-color: #444;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            width: 160px; /* Adjust width to fit the button text */
+        }
+        .dropdown-content button {
+            color: white;
+            padding: 10px 16px;
+            text-decoration: none;
+            display: block;
+            width: 100%;
+            border: none;
+            background: none;
+            text-align: left;
+            white-space: nowrap; /* Prevent text wrapping */
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dropdown-content button:hover {
+            background-color: #555;
         }
         #main-content {
             flex: 1;
@@ -121,7 +136,6 @@
             border-radius: 5px;
             overflow: auto;
         }
-
         code {
             font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
         }
@@ -238,28 +252,44 @@
             // Add session title
             const sessionTitleDiv = document.createElement('div');
             sessionTitleDiv.textContent = sessionTitle;
-            sessionTitleDiv.style.flex = '1';
+            sessionTitleDiv.classList.add('session-title');
             sessionTitleDiv.addEventListener('click', function() {
                 clearChat();
                 window.pywebview.api.load_session(sessionId);
             });
 
-            // Add delete button
-            const deleteButton = document.createElement('button');
-            const deleteIcon = document.createElement('i'); 
-            deleteIcon.classList.add('fas', 'fa-trash-alt'); // Add Font Awesome classes
-            deleteButton.appendChild(deleteIcon);
-            
-            deleteButton.classList.add('delete-button');
-            deleteButton.addEventListener('click', function(event) {
-                event.stopPropagation(); // Prevent the session from being loaded
-                window.pywebview.api.delete_session(sessionId);
-                sessionList.removeChild(sessionItem);
+            // Add dropdown for deletion
+            const dropdownDiv = document.createElement('div');
+            dropdownDiv.classList.add('dropdown');
+            dropdownDiv.innerHTML = '&#x2630;'; // Unicode for hamburger menu
+            dropdownDiv.addEventListener('click', function(event) {
+                event.stopPropagation();
+                const dropdownContent = dropdownDiv.querySelector('.dropdown-content');
+                dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
             });
 
+            const dropdownContentDiv = document.createElement('div');
+            dropdownContentDiv.classList.add('dropdown-content');
+
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.addEventListener('click', function() {
+                window.pywebview.api.delete_session(sessionId);
+                sessionItem.remove();
+            });
+
+            const regenerateTitleButton = document.createElement('button');
+            regenerateTitleButton.textContent = 'Regenerate title';
+            regenerateTitleButton.addEventListener('click', function() {
+                window.pywebview.api.regenerate_title(sessionId);
+            });
+
+            dropdownContentDiv.appendChild(deleteButton);
+            dropdownContentDiv.appendChild(regenerateTitleButton);
+            dropdownDiv.appendChild(dropdownContentDiv);
             sessionItem.setAttribute('data-session-id', sessionId)
             sessionItem.appendChild(sessionTitleDiv);
-            sessionItem.appendChild(deleteButton);
+            sessionItem.appendChild(dropdownDiv);
             sessionList.insertBefore(sessionItem, sessionList.firstChild);
         }
 
@@ -268,11 +298,22 @@
             const sessionItems = Array.from(sessionList.getElementsByTagName('li')); // Convert to array
             for (let item of sessionItems) {
                 if (item.getAttribute('data-session-id') === sessionId) {
-                    item.querySelector('div').textContent = newTitle;
+                    item.querySelector('.session-title').textContent = newTitle;
                     break;
                 }
             }
         }
+
+        // Close the dropdown if the user clicks outside of it
+        window.addEventListener('click', function(event) {
+            const dropdowns = document.querySelectorAll('.dropdown-content');
+            dropdowns.forEach(dropdown => {
+                if (dropdown.style.display === 'block') {
+                    dropdown.style.display = 'none';
+                }
+            });
+        });
+
     </script>
 </body>
 </html>

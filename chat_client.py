@@ -104,6 +104,17 @@ class ChatApp:
             traceback.print_exc()
             self.send_to_webview("system", f"Failed to delete session: {e}")
 
+    def regenerate_title(self, session_id):
+        try:
+            response = requests.get(f"http://{self.server}:{self.port}/session/{session_id}/title")
+            title = response.text
+            escaped_title = json.dumps(title)
+            self.session_titles[session_id] = escaped_title
+            window.evaluate_js(f'updateSessionTitle("{session_id}", {escaped_title})')
+        except Exception as e:
+            traceback.print_exc()
+            self.send_to_webview("system", f"Failed to regenerate title: {e}")
+
 def start_asyncio_loop():
     global event_loop
     event_loop = asyncio.new_event_loop()
