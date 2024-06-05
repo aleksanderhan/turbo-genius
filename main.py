@@ -44,7 +44,7 @@ terminators = [
     tokenizer.convert_tokens_to_ids(""),
 ]
 
-summarizer = pipeline(task="summarization", model="facebook/bart-large", min_length=2, max_length=10)
+summarizer = pipeline(task="summarization", model="google/flan-t5-large", min_length=2, max_length=10)
 
 
 async def stream_tokens(streamer: TextIteratorStreamer):
@@ -78,7 +78,7 @@ async def generate_response(prompt: str):
     thread.join()
 
 async def make_title(session: Session):
-    messages = session.get_messages()
+    messages = session.get_messages()[-2:]
     prompt = "\n".join([message["content"] for message in messages])
     return summarizer(prompt)
 
@@ -90,7 +90,6 @@ def make_prompt(session: Session):
         tokenize=True
     )
     num_tokens = inputs.shape[-1]
-    print(f"Number of tokens (session {session.id}): ", num_tokens)
     if num_tokens > int(config.max_position_embeddings * 0.9):
         session.truncate_messages()
         return make_prompt(session)

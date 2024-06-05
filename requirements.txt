@@ -1,11 +1,5 @@
-packaging
-torch
 transformers
-flash_attn
-tensorrt
 datasets
-peft
-trl
 accelerate
 bitsandbytes
 flash-attn

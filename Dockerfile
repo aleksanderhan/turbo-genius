@@ -22,14 +22,15 @@ RUN pip install packaging
 RUN pip install torch
 RUN pip install transformers \
                 datasets \
-                peft \
-                trl \
                 accelerate \
                 bitsandbytes \
                 flash-attn \
                 fastapi \
                 uvicorn \ 
-                tensorrt
+                termcolor \
+                pygments \
+                sqlalchemy \
+                sqlite
 RUN pip install -U "huggingface_hub[cli]"
 
 

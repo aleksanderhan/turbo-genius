@@ -87,6 +87,11 @@
             display: flex;
             flex-direction: column;
         }
+        #session-title-bar {
+            background-color: #333;
+            color: white;
+            height: 50px;
+        }
         #chat {
             flex: 1;
             overflow-y: auto;
@@ -150,6 +155,9 @@
         <button id="new-session-button">New Session</button>
     </div>
     <div id="main-content">
+        <div id="session-title-bar">
+            <h4 id="current-session-title">Select a session</h4>
+        </div>
         <div id="chat"></div>
         <div id="input-area">
             <textarea id="message-input" rows="3" placeholder="Type your message here..."></textarea>
@@ -170,6 +178,7 @@
             clearChat();
             window.pywebview.api.reset_session();
             currentAssistantMessageId = null;
+            updateSessionTitleBar("New Session");
         });
 
         function sendMessage() {
@@ -256,6 +265,7 @@
             sessionTitleDiv.addEventListener('click', function() {
                 clearChat();
                 window.pywebview.api.load_session(sessionId);
+                updateSessionTitleBar(sessionTitle);
             });
 
             // Add dropdown for deletion
@@ -276,16 +286,17 @@
             deleteButton.addEventListener('click', function() {
                 window.pywebview.api.delete_session(sessionId);
                 sessionItem.remove();
+                updateSessionTitleBar("Select a session");
             });
 
-            const regenerateTitleButton = document.createElement('button');
-            regenerateTitleButton.textContent = 'Regenerate title';
-            regenerateTitleButton.addEventListener('click', function() {
-                window.pywebview.api.regenerate_title(sessionId);
+            const generateTitleButton = document.createElement('button');
+            generateTitleButton.textContent = 'Generate title';
+            generateTitleButton.addEventListener('click', function() {
+                window.pywebview.api.generate_title(sessionId);
             });
 
             dropdownContentDiv.appendChild(deleteButton);
-            dropdownContentDiv.appendChild(regenerateTitleButton);
+            dropdownContentDiv.appendChild(generateTitleButton);
             dropdownDiv.appendChild(dropdownContentDiv);
             sessionItem.setAttribute('data-session-id', sessionId)
             sessionItem.appendChild(sessionTitleDiv);
@@ -299,9 +310,15 @@
             for (let item of sessionItems) {
                 if (item.getAttribute('data-session-id') === sessionId) {
                     item.querySelector('.session-title').textContent = newTitle;
+                    updateSessionTitleBar(newTitle);
                     break;
                 }
             }
+        }
+
+        function updateSessionTitleBar(title) {
+            const sessionTitleBar = document.getElementById('current-session-title');
+            sessionTitleBar.textContent = title;
         }
 
         // Close the dropdown if the user clicks outside of it

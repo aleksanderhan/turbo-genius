@@ -11,11 +11,16 @@ Streaming local llm server and client.
  - syntax highlighting and latex formatting
 
 
+## Dependencies
+    # for whatever reason these modules have to be installed separately
+    pip install packaging torch
+
+    # Install the rest of the dependencies
+    pip install -r requirements.txt
+
+
 ## Server
 Run any text-generation model from huggingface
-
-### Dependencies
-    pip install -r requirements.txt
 
 ### Run in docker
     docker build . --tag="turbo-genius"

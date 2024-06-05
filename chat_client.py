@@ -31,15 +31,7 @@ class ChatApp:
                     dt = time.time() - t0
                     print(f"Time elapsed: {dt:.2f} seconds, Number of tokens/sec: {num_token/dt:.2f}, Number of tokens: {num_token}")
                     if self.session_titles[self.session_id] == "New session":
-                        try:
-                            response = requests.get(f"http://{self.server}:{self.port}/session/{self.session_id}/title")
-                            title = response.text
-                            escaped_title = json.dumps(title)
-                            self.session_titles[self.session_id] = escaped_title
-                            window.evaluate_js(f'updateSessionTitle("{self.session_id}", {escaped_title})')
-                        except Exception as e:
-                            traceback.print_exc()
-                            self.send_to_webview("system", f"Failed to get title: {e}")
+                        self.generate_title(self.session_id)
         except Exception as e:
             traceback.print_exc()
             self.send_to_webview("system", f"WebSocket connection failed: {e}")
@@ -73,8 +65,9 @@ class ChatApp:
             response = requests.get(f"http://{self.server}:{self.port}/session-list")
             sessions = response.json()
             for session in sessions:
-                self.session_titles[str(session["id"])] = session["title"]
-                window.evaluate_js(f'addSession("{session["id"]}", "{session["title"]}")')
+                escaped_title = json.dumps(session["title"])
+                self.session_titles[str(session["id"])] = escaped_title
+                window.evaluate_js(f'addSession("{session["id"]}", {escaped_title})')
         except Exception as e:
             traceback.print_exc()
             self.send_to_webview("system", f"Failed to initialize sessions: {e}")
@@ -100,11 +93,12 @@ class ChatApp:
             requests.delete(f"http://{self.server}:{self.port}/session/{session_id}")
             if session_id == self.session_id:
                 self.reset_session()
+            window.evaluate_js(f'clearChat()')
         except Exception as e:
             traceback.print_exc()
             self.send_to_webview("system", f"Failed to delete session: {e}")
 
-    def regenerate_title(self, session_id):
+    def generate_title(self, session_id):
         try:
             response = requests.get(f"http://{self.server}:{self.port}/session/{session_id}/title")
             title = response.text
@@ -113,7 +107,7 @@ class ChatApp:
             window.evaluate_js(f'updateSessionTitle("{session_id}", {escaped_title})')
         except Exception as e:
             traceback.print_exc()
-            self.send_to_webview("system", f"Failed to regenerate title: {e}")
+            self.send_to_webview("system", f"Failed to generate title: {e}")
 
 def start_asyncio_loop():
     global event_loop
