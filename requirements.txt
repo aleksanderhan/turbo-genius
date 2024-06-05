@@ -9,4 +9,3 @@ huggingface_hub
 termcolor
 pygments
 sqlalchemy
-sqlite

@@ -12,6 +12,8 @@ Streaming local llm server and client.
 
 
 ## Dependencies
+    sudo apt-get install sqlite3 libsqlite3-dev
+
     # for whatever reason these modules have to be installed separately
     pip install packaging torch
 
