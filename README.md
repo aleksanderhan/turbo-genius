@@ -9,6 +9,7 @@ Streaming local llm server and client.
  - session management and persistance
  - automatic title summary
  - syntax highlighting and latex formatting
+ - image generation capabilities
 
 
 ## Dependencies

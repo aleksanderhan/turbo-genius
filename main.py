@@ -15,9 +15,13 @@ from diffusers import StableDiffusionXLPipeline, DPMSolverSinglestepScheduler, A
 from session import Session, SessionManager, SessionDB, SessionImageDB, get_db
 
 app = FastAPI()
+session_manager = SessionManager()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', action='store', default="meta-llama/Meta-Llama-3-8B-Instruct")
+parser.add_argument('--port', action='store', default=8000)
+parser.add_argument('--image_capabilities', action='store_true', default=False)
+parser.add_argument('--image_cpu_offload', action='store_true', default=False)
 args = parser.parse_args()
 
 bnb_config = BitsAndBytesConfig(
@@ -56,7 +60,8 @@ sdxl_pipe.scheduler = DPMSolverSinglestepScheduler.from_config(sdxl_pipe.schedul
 sdxl_pipe.vae = AutoencoderTiny.from_pretrained("madebyollin/taesdxl", torch_dtype=torch.float16)
 sdxl_pipe.enable_vae_tiling()
 sdxl_pipe.enable_vae_slicing()
-sdxl_pipe.enable_sequential_cpu_offload()
+if args.image_cpu_offload:
+    sdxl_pipe.enable_sequential_cpu_offload()
 
 
 async def stream_tokens(streamer: TextIteratorStreamer):
@@ -113,7 +118,8 @@ def make_prompt(session: Session):
         )
 
 async def generate_image(session_id: int, prompt: str, db: DBSession):
-    # Generate the image
+    torch.cuda.empty_cache()
+    gc.collect()
     image = sdxl_pipe(prompt, num_inference_steps=7, guidance_scale=3).images[0]
     img_byte_arr = io.BytesIO()
     image.save(img_byte_arr, format='PNG')
@@ -125,7 +131,9 @@ async def generate_image(session_id: int, prompt: str, db: DBSession):
     db.commit()
     db.refresh(image_db)
 
-    # Add image reference to the session messages
+    # Create an image URL
+    image_url = f'<img class="scaled" src="http://<host>:<port>/image/{image_db.id}" alt="{prompt}" />'
+
     session = session_manager.get_session(session_id, db)
     session.add_image_reference(image_db.id)
     db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
@@ -133,7 +141,7 @@ async def generate_image(session_id: int, prompt: str, db: DBSession):
     db.add(db_session)
     db.commit()
     
-    return {"image_id": image_db.id}
+    return image_url
 
 @app.websocket("/stream/{session_id}")
 async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(get_db)):
@@ -141,13 +149,15 @@ async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(
     message = await websocket.receive_text()
     session = session_manager.get_session(session_id, db)
     
-    if message.startswith("image:"):  # Assuming image requests start with "image:"
+    if message.startswith("image:"):
         prompt = message[len("image:"):].strip()
-        response = await generate_image(session_id, prompt, db)
-        print(response)
-        image_tag = f'<img class="scaled" src="http://localhost:8000/image/{response["image_id"]}" alt="{prompt}" />'
-        print(image_tag)
+        image_tag = await generate_image(session_id, prompt, db)
         await websocket.send_text(image_tag)
+        session.add_assistant_message(image_tag)
+        db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
+        db_session.messages = str(session.messages)
+        db.add(db_session)
+        db.commit()
         await asyncio.sleep(0.01)
     else:
         session.add_user_message(message)
@@ -212,6 +222,5 @@ async def get_image(image_id: int, db: DBSession = Depends(get_db)):
     img_byte_arr = io.BytesIO(image_db.image)
     return Response(img_byte_arr.getvalue(), media_type="image/png")
 
-if __name__ == "__main__":
-    session_manager = SessionManager()
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+if __name__ == "__main__":        
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
