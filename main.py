@@ -55,13 +55,14 @@ summarizer = pipeline(
 )
 
 
-sdxl_pipe = StableDiffusionXLPipeline.from_pretrained("sd-community/sdxl-flash", torch_dtype=torch.float16)
-sdxl_pipe.scheduler = DPMSolverSinglestepScheduler.from_config(sdxl_pipe.scheduler.config, timestep_spacing="trailing")
-sdxl_pipe.vae = AutoencoderTiny.from_pretrained("madebyollin/taesdxl", torch_dtype=torch.float16)
-sdxl_pipe.enable_vae_tiling()
-sdxl_pipe.enable_vae_slicing()
-if args.image_cpu_offload:
-    sdxl_pipe.enable_sequential_cpu_offload()
+if args.image_capabilities:
+    sdxl_pipe = StableDiffusionXLPipeline.from_pretrained("sd-community/sdxl-flash", torch_dtype=torch.float16)
+    sdxl_pipe.scheduler = DPMSolverSinglestepScheduler.from_config(sdxl_pipe.scheduler.config, timestep_spacing="trailing")
+    sdxl_pipe.vae = AutoencoderTiny.from_pretrained("madebyollin/taesdxl", torch_dtype=torch.float16)
+    sdxl_pipe.enable_vae_tiling()
+    sdxl_pipe.enable_vae_slicing()
+    if args.image_cpu_offload:
+        sdxl_pipe.enable_sequential_cpu_offload()
 
 
 async def stream_tokens(streamer: TextIteratorStreamer):
@@ -120,7 +121,7 @@ def make_prompt(session: Session):
 async def generate_image(session_id: int, prompt: str, db: DBSession):
     torch.cuda.empty_cache()
     gc.collect()
-    image = sdxl_pipe(prompt, num_inference_steps=7, guidance_scale=3).images[0]
+    image = sdxl_pipe(prompt, num_inference_steps=6, guidance_scale=3).images[0]
     img_byte_arr = io.BytesIO()
     image.save(img_byte_arr, format='PNG')
     img_byte_arr = img_byte_arr.getvalue()
