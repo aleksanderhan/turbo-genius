@@ -41,7 +41,15 @@ terminators = [
     tokenizer.convert_tokens_to_ids(""),
 ]
 
-summarizer = pipeline(task="summarization", model="facebook/bart-large-cnn", min_length=2, max_length=10)
+summarizer = pipeline(
+    task="summarization", 
+    model="facebook/bart-large-cnn", 
+    min_length=2, 
+    max_length=10,
+    do_sample=True,
+    temperature=0.6,
+    top_p=0.9,
+)
 
 
 async def stream_tokens(streamer: TextIteratorStreamer):
@@ -77,7 +85,7 @@ async def generate_response(prompt: str):
 async def make_title(session: Session):
     messages = session.get_messages()[-2:]
     prompt = "\n".join([message["content"] for message in messages])
-    return summarizer(prompt).strip('"')
+    return summarizer(prompt)
 
 def make_prompt(session: Session):
     inputs = tokenizer.apply_chat_template(
@@ -150,7 +158,7 @@ async def delete_session(session_id: int, db: DBSession = Depends(get_db)):
 async def get_session_title(session_id: int, db: DBSession = Depends(get_db)):
     session = session_manager.get_session(session_id, db)
     summary_response = await make_title(session)
-    session.title = summary_response[0]["summary_text"]
+    session.title = summary_response[0]["summary_text"].strip('"')
     db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
     db_session.title = session.title
     db.add(db_session)
