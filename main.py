@@ -152,6 +152,7 @@ async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(
     
     if message.startswith("image:"):
         prompt = message[len("image:"):].strip()
+        session.add_user_message(message)
         image_tag = await generate_image(session_id, prompt, db)
         await websocket.send_text(image_tag)
         session.add_assistant_message(image_tag)

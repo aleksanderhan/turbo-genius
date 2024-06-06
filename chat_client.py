@@ -34,8 +34,8 @@ class ChatApp:
                 finally:
                     dt = time.time() - t0
                     print(f"Time elapsed: {dt:.2f} seconds, Number of tokens/sec: {num_token/dt:.2f}, Number of tokens: {num_token}")
-                    #if self.session_titles[self.session_id] == "New session":
-                    #    self.generate_title(self.session_id)
+                    if self.session_titles[self.session_id] == "New session":
+                        self.generate_title(self.session_id)
         except Exception as e:
             traceback.print_exc()
             self.send_to_webview("system", f"WebSocket connection failed: {e}")
@@ -84,6 +84,9 @@ class ChatApp:
                 chat_data = response.json()
                 for message in chat_data["messages"]:
                     if message["role"] == "user" or message["role"] == "assistant":
+                        img_tag_pattern = r'<img\b[^>]*>'
+                        if re.search(img_tag_pattern, message["content"]):
+                            message["content"] = message["content"].replace("<host>", self.host).replace("<port>", str(self.port))
                         self.send_to_webview(message["role"], message["content"])
                 self.session_id = session_id
             except Exception as e:
