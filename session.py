@@ -1,6 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text
+from sqlalchemy import create_engine, Column, Integer, String, Text, LargeBinary, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 
 # Database setup
 SQLALCHEMY_DATABASE_URL = "sqlite:///./sessions.db"
@@ -13,6 +13,14 @@ class SessionDB(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     title = Column(String, index=True, nullable=True)
     messages = Column(Text, nullable=True)
+    images = relationship("SessionImageDB", back_populates="session")  # New relationship
+
+class SessionImageDB(Base):
+    __tablename__ = "session_images"
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    session_id = Column(Integer, ForeignKey("sessions.id"))
+    image = Column(LargeBinary, nullable=False)
+    session = relationship("SessionDB", back_populates="images")
 
 Base.metadata.create_all(bind=engine)
 
@@ -35,8 +43,11 @@ class Session:
     def add_assistant_message(self, message):
         self.messages.append({"role": "assistant", "content": message})
 
+    def add_image_reference(self, image_id):
+        self.messages.append({"role": "image", "content": image_id})
+
     def get_messages(self):
-        return self.messages
+        return [{"role": message["role"], "content": message["content"]} for message in self.messages if message["role"] != "image"]
     
     def truncate_messages(self):
         self.messages = self.messages[2:]
@@ -49,6 +60,7 @@ class SessionManager:
         session_db = db.query(SessionDB).filter(SessionDB.id == session_id).first()
         if session_db:
             session = Session(session_db.id, session_db.title, eval(session_db.messages))
+            session.images = [image.image for image in session_db.images]
             self.sessions[session_id] = session
             return session
         else:
@@ -73,3 +85,4 @@ class SessionManager:
             db.commit()
         if session_id in self.sessions:
             del self.sessions[session_id]
+

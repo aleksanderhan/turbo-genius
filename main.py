@@ -4,12 +4,15 @@ import uvicorn
 import gc
 import asyncio
 import argparse
+import io
 from fastapi import FastAPI, WebSocket, Depends
+from fastapi.responses import Response
 from threading import Thread
 from sqlalchemy.orm import Session as DBSession
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextIteratorStreamer, pipeline
+from diffusers import StableDiffusionXLPipeline, DPMSolverSinglestepScheduler, AutoencoderTiny
 
-from session import Session, SessionManager, get_db, SessionDB
+from session import Session, SessionManager, SessionDB, SessionImageDB, get_db
 
 app = FastAPI()
 
@@ -23,9 +26,7 @@ bnb_config = BitsAndBytesConfig(
     bnb_4bit_quant_type="nf4",
     bnb_4bit_compute_dtype=torch.bfloat16
 )
-
 config = AutoConfig.from_pretrained(args.model)
-
 model = AutoModelForCausalLM.from_pretrained(
     args.model,
     device_map='auto',
@@ -33,9 +34,7 @@ model = AutoModelForCausalLM.from_pretrained(
     quantization_config=bnb_config,
     attn_implementation="flash_attention_2"
 )
-
 tokenizer = AutoTokenizer.from_pretrained(args.model)
-
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids(""),
@@ -50,6 +49,14 @@ summarizer = pipeline(
     temperature=0.6,
     top_p=0.9,
 )
+
+
+sdxl_pipe = StableDiffusionXLPipeline.from_pretrained("sd-community/sdxl-flash", torch_dtype=torch.float16)
+sdxl_pipe.scheduler = DPMSolverSinglestepScheduler.from_config(sdxl_pipe.scheduler.config, timestep_spacing="trailing")
+sdxl_pipe.vae = AutoencoderTiny.from_pretrained("madebyollin/taesdxl", torch_dtype=torch.float16)
+sdxl_pipe.enable_vae_tiling()
+sdxl_pipe.enable_vae_slicing()
+sdxl_pipe.enable_sequential_cpu_offload()
 
 
 async def stream_tokens(streamer: TextIteratorStreamer):
@@ -105,33 +112,67 @@ def make_prompt(session: Session):
             tokenize=False
         )
 
+async def generate_image(session_id: int, prompt: str, db: DBSession):
+    # Generate the image
+    image = sdxl_pipe(prompt, num_inference_steps=7, guidance_scale=3).images[0]
+    img_byte_arr = io.BytesIO()
+    image.save(img_byte_arr, format='PNG')
+    img_byte_arr = img_byte_arr.getvalue()
+
+    # Save the image to the database
+    image_db = SessionImageDB(session_id=session_id, image=img_byte_arr)
+    db.add(image_db)
+    db.commit()
+    db.refresh(image_db)
+
+    # Add image reference to the session messages
+    session = session_manager.get_session(session_id, db)
+    session.add_image_reference(image_db.id)
+    db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
+    db_session.messages = str(session.messages)
+    db.add(db_session)
+    db.commit()
+    
+    return {"image_id": image_db.id}
+
 @app.websocket("/stream/{session_id}")
 async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(get_db)):
     await websocket.accept()
     message = await websocket.receive_text()
     session = session_manager.get_session(session_id, db)
-    session.add_user_message(message)
-    db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
-    db_session.messages = str(session.messages)
-    db.add(db_session)
-    db.commit()
-    prompt = make_prompt(session)
-    completion = ""
-    try:
-        async for token in generate_response(prompt):
-            if token is None:
-                break
-            completion += token
-            await websocket.send_text(token)
-            await asyncio.sleep(0.01)
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        session.add_assistant_message(completion)
+    
+    if message.startswith("image:"):  # Assuming image requests start with "image:"
+        prompt = message[len("image:"):].strip()
+        response = await generate_image(session_id, prompt, db)
+        print(response)
+        image_tag = f'<img class="scaled" src="http://localhost:8000/image/{response["image_id"]}" alt="{prompt}" />'
+        print(image_tag)
+        await websocket.send_text(image_tag)
+        await asyncio.sleep(0.01)
+    else:
+        session.add_user_message(message)
+        db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
         db_session.messages = str(session.messages)
         db.add(db_session)
         db.commit()
-        await websocket.close()
+        prompt = make_prompt(session)
+        completion = ""
+        try:
+            async for token in generate_response(prompt):
+                if token is None:
+                    break
+                completion += token
+                await websocket.send_text(token)
+                await asyncio.sleep(0.01)
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            session.add_assistant_message(completion)
+            db_session.messages = str(session.messages)
+            db.add(db_session)
+            db.commit()
+            await websocket.close()
+
 
 @app.get("/session")
 async def get_session(db: DBSession = Depends(get_db)):
@@ -164,6 +205,12 @@ async def get_session_title(session_id: int, db: DBSession = Depends(get_db)):
     db.add(db_session)
     db.commit()
     return session.title
+
+@app.get("/image/{image_id}")
+async def get_image(image_id: int, db: DBSession = Depends(get_db)):
+    image_db = db.query(SessionImageDB).filter(SessionImageDB.id == image_id).first()    
+    img_byte_arr = io.BytesIO(image_db.image)
+    return Response(img_byte_arr.getvalue(), media_type="image/png")
 
 if __name__ == "__main__":
     session_manager = SessionManager()

@@ -23,6 +23,7 @@ class ChatApp:
                 try:
                     while True:
                         token = await websocket.recv()
+                        print(token)
                         self.send_to_webview("assistant", token)
                         num_token += 1
                 except websockets.exceptions.ConnectionClosed:
@@ -30,14 +31,15 @@ class ChatApp:
                 finally:
                     dt = time.time() - t0
                     print(f"Time elapsed: {dt:.2f} seconds, Number of tokens/sec: {num_token/dt:.2f}, Number of tokens: {num_token}")
-                    if self.session_titles[self.session_id] == "New session":
-                        self.generate_title(self.session_id)
+                    #if self.session_titles[self.session_id] == "New session":
+                    #    self.generate_title(self.session_id)
         except Exception as e:
             traceback.print_exc()
             self.send_to_webview("system", f"WebSocket connection failed: {e}")
 
     def send_to_webview(self, role, message):
         sanitized_message = json.dumps(message)
+        print(sanitized_message)
         window.evaluate_js(f'addMessage("{role}", {sanitized_message})')
 
     def send_message(self, message):
