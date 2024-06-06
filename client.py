@@ -109,7 +109,7 @@ class ChatApp:
     def generate_title(self, session_id):
         try:
             response = requests.get(f"http://{self.host}:{self.port}/session/{session_id}/title")
-            title = response.text
+            title = response.json()
             escaped_title = json.dumps(title)
             self.session_titles[session_id] = escaped_title
             window.evaluate_js(f'updateSessionTitle("{session_id}", {escaped_title})')
