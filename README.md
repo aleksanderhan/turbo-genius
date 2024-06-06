@@ -28,7 +28,7 @@ Run any text-generation model from huggingface
     docker run --gpus all -e HUGGINGFACE_TOKEN=<token> -d -p 8000:8000 turbo-genius
 
 ### Run in terminal
-    python main.py --model <model>
+    python server.py --model <model>
 
 ## Clients
 
@@ -36,4 +36,4 @@ Run any text-generation model from huggingface
     python cli.py --host <host> --port <port>
 
 ### Chat client desktop app
-    python chat_client.py --host <host> --port <port>
+    python client.py --host <host> --port <port>
