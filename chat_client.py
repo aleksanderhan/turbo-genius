@@ -6,10 +6,11 @@ import traceback
 import webview
 import requests
 import json
+import re
 
 class ChatApp:
-    def __init__(self, server, port):
-        self.server = server
+    def __init__(self, host, port):
+        self.host = host
         self.port = port
         self.session_id = None
         self.session_titles = {}
@@ -23,7 +24,9 @@ class ChatApp:
                 try:
                     while True:
                         token = await websocket.recv()
-                        print(token)
+                        img_tag_pattern = r'<img\b[^>]*>'
+                        if re.search(img_tag_pattern, token):
+                            token = token.replace("<host>", self.host).replace("<port>", str(self.port))
                         self.send_to_webview("assistant", token)
                         num_token += 1
                 except websockets.exceptions.ConnectionClosed:
@@ -45,7 +48,7 @@ class ChatApp:
     def send_message(self, message):
         if self.session_id is None:
             try:
-                response = requests.get(f"http://{self.server}:{self.port}/session")
+                response = requests.get(f"http://{self.host}:{self.port}/session")
                 self.session_id = str(response.json())
                 window.evaluate_js(f'addSession("{self.session_id}", "New session")')
                 self.session_titles[self.session_id] = "New session"
@@ -56,7 +59,7 @@ class ChatApp:
         prompt = message.strip()
         if prompt:
             try:
-                uri = f"ws://{self.server}:{self.port}/stream/{self.session_id}"
+                uri = f"ws://{self.host}:{self.port}/stream/{self.session_id}"
                 asyncio.run_coroutine_threadsafe(self.stream_tokens(uri, prompt), event_loop)
             except Exception as e:
                 traceback.print_exc()
@@ -64,7 +67,7 @@ class ChatApp:
 
     def initialize(self):
         try:
-            response = requests.get(f"http://{self.server}:{self.port}/session-list")
+            response = requests.get(f"http://{self.host}:{self.port}/session-list")
             sessions = response.json()
             for session in sessions:
                 escaped_title = json.dumps(session["title"])
@@ -77,7 +80,7 @@ class ChatApp:
     def load_session(self, session_id):
         if session_id != self.session_id:
             try:
-                response = requests.get(f"http://{self.server}:{self.port}/session/{session_id}")
+                response = requests.get(f"http://{self.host}:{self.port}/session/{session_id}")
                 chat_data = response.json()
                 for message in chat_data["messages"]:
                     if message["role"] == "user" or message["role"] == "assistant":
@@ -92,7 +95,7 @@ class ChatApp:
 
     def delete_session(self, session_id):
         try:
-            requests.delete(f"http://{self.server}:{self.port}/session/{session_id}")
+            requests.delete(f"http://{self.host}:{self.port}/session/{session_id}")
             if session_id == self.session_id:
                 self.reset_session()
             window.evaluate_js(f'clearChat()')
@@ -102,7 +105,7 @@ class ChatApp:
 
     def generate_title(self, session_id):
         try:
-            response = requests.get(f"http://{self.server}:{self.port}/session/{session_id}/title")
+            response = requests.get(f"http://{self.host}:{self.port}/session/{session_id}/title")
             title = response.text
             escaped_title = json.dumps(title)
             self.session_titles[session_id] = escaped_title
@@ -121,7 +124,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--server', action='store', default="localhost")
+    parser.add_argument('--host', action='store', default="localhost")
     parser.add_argument('--port', action='store', default="8000")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
@@ -129,7 +132,7 @@ if __name__ == "__main__":
     loop_thread = threading.Thread(target=start_asyncio_loop, daemon=True)
     loop_thread.start()
 
-    app = ChatApp(args.server, args.port)
+    app = ChatApp(args.host, args.port)
 
     window = webview.create_window("Turbo-Genius Chat", "index.html", js_api=app, text_select=True)
     webview.start(app.initialize, debug=args.debug)

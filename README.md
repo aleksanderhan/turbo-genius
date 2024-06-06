@@ -35,7 +35,7 @@ Run any text-generation model from huggingface
 ## Clients
 
 ### Cli
-    python cli.py --server <server> --port <port>
+    python cli.py --host <host> --port <port>
 
 ### Chat client desktop app
-    python chat_client.py --server <server> --port <port>
+    python chat_client.py --host <host> --port <port>

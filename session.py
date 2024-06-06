@@ -60,7 +60,6 @@ class SessionManager:
         session_db = db.query(SessionDB).filter(SessionDB.id == session_id).first()
         if session_db:
             session = Session(session_db.id, session_db.title, eval(session_db.messages))
-            session.images = [image.image for image in session_db.images]
             self.sessions[session_id] = session
             return session
         else:
