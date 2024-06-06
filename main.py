@@ -158,7 +158,7 @@ async def delete_session(session_id: int, db: DBSession = Depends(get_db)):
 async def get_session_title(session_id: int, db: DBSession = Depends(get_db)):
     session = session_manager.get_session(session_id, db)
     summary_response = await make_title(session)
-    session.title = summary_response[0]["summary_text"].strip('"')
+    session.title = summary_response[0]["summary_text"]
     db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
     db_session.title = session.title
     db.add(db_session)
