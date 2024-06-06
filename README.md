@@ -1,9 +1,6 @@
 # Turbo-Genius
 Streaming local llm server and client.
 
-![Turbo-Genius Chat Client](assets/chat_client.gif)
-
-
 ## Features
  - streaming llm server and client
  - session management and persistance
@@ -11,6 +8,8 @@ Streaming local llm server and client.
  - syntax highlighting and latex formatting
  - image generation capabilities
 
+![Turbo-Genius Chat Client](assets/chat_client.gif)
+![Image capabilities](assets/image_capability.png)
 
 ## Dependencies
     sudo apt-get install sqlite3 libsqlite3-dev
@@ -21,7 +20,6 @@ Streaming local llm server and client.
     # Install the rest of the dependencies
     pip install -r requirements.txt
 
-
 ## Server
 Run any text-generation model from huggingface
 
@@ -31,7 +29,6 @@ Run any text-generation model from huggingface
 
 ### Run in terminal
     python main.py --model <model>
-
 
 ## Clients
 
