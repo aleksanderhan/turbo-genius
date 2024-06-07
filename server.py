@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from threading import Thread
 from sqlalchemy.orm import Session as DBSession
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextIteratorStreamer, pipeline
+from transformers import ReactJsonAgent, Tool
 from diffusers import StableDiffusionXLPipeline, DPMSolverSinglestepScheduler, AutoencoderTiny
 
 from session import Session, SessionManager, SessionDB, SessionImageDB, get_db
@@ -94,7 +95,7 @@ async def generate_response(prompt: str):
 
     thread.join()
 
-async def make_title(session: Session):
+def make_title(session: Session):
     messages = session.get_messages()[-2:]
     prompt = "\n".join([message["content"] for message in messages])
     return summarizer(prompt)
@@ -117,7 +118,7 @@ def make_prompt(session: Session):
             tokenize=False
         )
 
-async def generate_image(session_id: int, prompt: str, db: DBSession):
+def generate_image(session_id: int, prompt: str, db: DBSession):
     torch.cuda.empty_cache()
     gc.collect()
     image = sdxl_pipe(prompt, num_inference_steps=6, guidance_scale=3).images[0]
@@ -135,23 +136,40 @@ async def generate_image(session_id: int, prompt: str, db: DBSession):
     image_url = f'<img class="scaled" src="http://<host>:<port>/image/{image_db.id}" alt="{prompt}" />'    
     return image_url
 
+class GenerateImage(Tool):
+    name = "generate_image"
+    description = (
+        "This tool generates an image based on the given prompt."
+    )
+
+    inputs = {
+        "prompt": {
+            "type": "text",
+            "description": "The image prompt used to generate the image.",
+        }
+    }
+    output_type = "image html tag"
+
+    def forward(self, prompt: str):
+        image_tag = generate_image(session_id, prompt, db)
+        return image_tag
+
 @app.websocket("/stream/{session_id}")
 async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(get_db)):
     await websocket.accept()
     message = await websocket.receive_text()
     session = session_manager.get_session(session_id, db)
+    session.add_user_message(message)
+    session_manager.save_session(session, db)            
     
     if message.startswith("image:"):
         prompt = message[len("image:"):].strip()
-        session.add_user_message(message)
-        image_tag = await generate_image(session_id, prompt, db)
+        
         await websocket.send_text(image_tag)
+        await asyncio.sleep(0.01)
         session.add_assistant_message(image_tag)
         session_manager.save_session(session, db)                    
-        await asyncio.sleep(0.01)
-    else:
-        session.add_user_message(message)
-        session_manager.save_session(session, db)            
+    else:          
         prompt = make_prompt(session)
         completion = ""
         try:
@@ -193,7 +211,7 @@ async def delete_session(session_id: int, db: DBSession = Depends(get_db)):
 @app.get("/session/{session_id}/title")
 async def get_session_title(session_id: int, db: DBSession = Depends(get_db)):
     session = session_manager.get_session(session_id, db)
-    summary_response = await make_title(session)
+    summary_response = make_title(session)
     session.title = summary_response[0]["summary_text"]
     db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
     db_session.title = session.title
