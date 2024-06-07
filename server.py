@@ -14,9 +14,6 @@ from diffusers import StableDiffusionXLPipeline, DPMSolverSinglestepScheduler, A
 
 from session import Session, SessionManager, SessionDB, SessionImageDB, get_db
 
-app = FastAPI()
-session_manager = SessionManager()
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', action='store', default="meta-llama/Meta-Llama-3-8B-Instruct")
 parser.add_argument('--port', action='store', default=8000)
@@ -24,6 +21,9 @@ parser.add_argument('--image_generation', action='store_true', default=False)
 parser.add_argument('--image_model', action='store', default="sd-community/sdxl-flash")
 parser.add_argument('--image_cpu_offload', action='store_true', default=False)
 args = parser.parse_args()
+
+app = FastAPI()
+session_manager = SessionManager()
 
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
@@ -41,8 +41,7 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 tokenizer = AutoTokenizer.from_pretrained(args.model)
 terminators = [
-    tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids(""),
+    tokenizer.eos_token_id
 ]
 
 summarizer = pipeline(
@@ -99,10 +98,10 @@ def make_title(session: Session):
     prompt = "\n".join([message["content"] for message in messages])
     return summarizer(prompt)
 
-def make_prompt(session: Session):
+def make_prompt(session: Session, add_generation_prompt=True):
     inputs = tokenizer.apply_chat_template(
         session.get_messages(),
-        add_generation_prompt=True,
+        add_generation_prompt=add_generation_prompt,
         return_tensors="pt",
         tokenize=True
     )
@@ -113,46 +112,75 @@ def make_prompt(session: Session):
     else:
         return tokenizer.apply_chat_template(
             session.get_messages(),
-            add_generation_prompt=True,
+            add_generation_prompt=add_generation_prompt,
             tokenize=False
         )
+    
+def make_image_prompt(session: Session):
+    prompt = "In 50 tokens or less make a descriptive image prompt based on the users last message:\n" 
+    prompt += make_prompt(session, False) + "\n"
+    prompt += "Image prompt: "
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    response = model.generate(**inputs, max_new_tokens=50, temperature=0.9, top_p=0.9, do_sample=True, eos_token_id=terminators)
+    image_prompt = tokenizer.decode(response[0], skip_special_tokens=True)
+    print(image_prompt)
+    return image_prompt.replace(prompt, "")
 
-def generate_image(session_id: int, prompt: str, db: DBSession):
+def generate_image(prompt: str):
     torch.cuda.empty_cache()
     gc.collect()
     image = sdxl_pipe(prompt, num_inference_steps=6, guidance_scale=3).images[0]
     img_byte_arr = io.BytesIO()
     image.save(img_byte_arr, format='PNG')
-    img_byte_arr = img_byte_arr.getvalue()
+    return img_byte_arr.getvalue()
 
-    # Save the image to the database
-    image_db = SessionImageDB(session_id=session_id, image=img_byte_arr)
-    db.add(image_db)
-    db.commit()
-    db.refresh(image_db)
+def route_message(message: str):
+    routing_template = """You are tasked with routing user messages to the correct tool. Respond with a single XML tag that represents the tool you should use.
 
-    # Create an image URL
-    image_url = f'<img class="scaled" src="http://<host>:<port>/image/{image_db.id}" alt="{prompt}" />'    
-    return image_url
+### Tools:
+- tag: <chat>
+  description: General chatting tool. Use this tool if you can't find a better tool.
+
+- tag: <image>
+  description: Image generation tool. Use this tool if the user asks to generate an image.
+
+### User message:
+{user_message}
+
+### Response:
+"""
+    prompt = routing_template.format(user_message=message)
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    response = model.generate(**inputs, max_new_tokens=5, temperature=0.1)
+    action = tokenizer.decode(response[0], skip_special_tokens=True)
+    action = action.replace(prompt, "").lower()
+    print(action)
+    if "<image>" in action:
+        return "image"
+    else:
+        return "chat"
+
 
 @app.websocket("/stream/{session_id}")
 async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(get_db)):
     await websocket.accept()
     message = await websocket.receive_text()
     session = session_manager.get_session(session_id, db)
+    session.add_user_message(message)
+    session_manager.save_session(session, db)            
     
-    if message.startswith("image:"):
-        prompt = message[len("image:"):].strip()
-        session.add_user_message(message)
-        image_tag = generate_image(session_id, prompt, db)
+    if route_message(message) == "image":
+        prompt = make_image_prompt(session)
+        img_byte_arr = generate_image(prompt)
+        image_id = session_manager.save_image(session_id, img_byte_arr, db)
+        image_tag = f'<img class="scaled" src="http://<host>:<port>/image/{image_id}" alt="{prompt}" />'
         await websocket.send_text(image_tag)
         await asyncio.sleep(0.01)
         session.add_assistant_message(image_tag)
-        session_manager.save_session(session, db)                    
+        session_manager.save_session(session, db)
     else:
-        session.add_user_message(message)
-        session_manager.save_session(session, db)            
         prompt = make_prompt(session)
+        print(prompt)
         completion = ""
         try:
             async for token in generate_response(prompt):
@@ -167,7 +195,6 @@ async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(
             session.add_assistant_message(completion)
             session_manager.save_session(session, db)            
             await websocket.close()
-
 
 @app.get("/session")
 async def get_session(db: DBSession = Depends(get_db)):

@@ -85,3 +85,11 @@ class SessionManager:
             db.add(session_db)
             db.commit()
 
+    def save_image(self, session_id, img_byte_arr, db):
+        # Save the image to the database
+        image_db = SessionImageDB(session_id=session_id, image=img_byte_arr)
+        db.add(image_db)
+        db.commit()
+        db.refresh(image_db)
+        return image_db.id
+
