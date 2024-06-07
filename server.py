@@ -94,7 +94,7 @@ async def generate_response(prompt: str):
 
     thread.join()
 
-async def make_title(session: Session):
+def make_title(session: Session):
     messages = session.get_messages()[-2:]
     prompt = "\n".join([message["content"] for message in messages])
     return summarizer(prompt)
@@ -117,7 +117,7 @@ def make_prompt(session: Session):
             tokenize=False
         )
 
-async def generate_image(session_id: int, prompt: str, db: DBSession):
+def generate_image(session_id: int, prompt: str, db: DBSession):
     torch.cuda.empty_cache()
     gc.collect()
     image = sdxl_pipe(prompt, num_inference_steps=6, guidance_scale=3).images[0]
@@ -144,11 +144,11 @@ async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(
     if message.startswith("image:"):
         prompt = message[len("image:"):].strip()
         session.add_user_message(message)
-        image_tag = await generate_image(session_id, prompt, db)
+        image_tag = generate_image(session_id, prompt, db)
         await websocket.send_text(image_tag)
+        await asyncio.sleep(0.01)
         session.add_assistant_message(image_tag)
         session_manager.save_session(session, db)                    
-        await asyncio.sleep(0.01)
     else:
         session.add_user_message(message)
         session_manager.save_session(session, db)            
@@ -193,7 +193,7 @@ async def delete_session(session_id: int, db: DBSession = Depends(get_db)):
 @app.get("/session/{session_id}/title")
 async def get_session_title(session_id: int, db: DBSession = Depends(get_db)):
     session = session_manager.get_session(session_id, db)
-    summary_response = await make_title(session)
+    summary_response = make_title(session)
     session.title = summary_response[0]["summary_text"]
     db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
     db_session.title = session.title
