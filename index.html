@@ -148,6 +148,24 @@
             max-width: 100%;
             height: auto;
         }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #333;
+            margin: 10px auto;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 <body>
@@ -170,6 +188,7 @@
     </div>
     <script>
         let currentAssistantMessageId = null;
+        let assistantMessageBuffer = '';
 
         document.getElementById('send-button').addEventListener('click', sendMessage);
         document.getElementById('message-input').addEventListener('keydown', function(event) {
@@ -191,12 +210,28 @@
             if (message) {
                 window.pywebview.api.send_message(message);
                 addMessage('user', message);
+                addMessage('assistant', '', true);
                 input.value = '';
-                currentAssistantMessageId = null; // Reset the assistant message ID
             }
         }
 
-        function addMessage(role, message) {
+        function stopSpinner(assistantMessageId) {
+            const messageDiv = document.getElementById(assistantMessageId);
+            if (messageDiv) {
+                const spinner = messageDiv.querySelector(".spinner");
+                if (spinner) {
+                    spinner.remove();
+                }
+            }
+        }
+
+        function createSpinner() {
+            const spinnerDiv = document.createElement('div');
+            spinnerDiv.classList.add('spinner');
+            return spinnerDiv;
+        }
+
+        function addMessage(role, message, withSpinner=false) {
             const chat = document.getElementById('chat');
             let messageDiv = null;
 
@@ -205,6 +240,7 @@
                 if (messageDiv) {
                     assistantMessageBuffer += message;
                     messageDiv.querySelector('.message-content').innerHTML = parseMessageContent(assistantMessageBuffer);
+                    stopSpinner(currentAssistantMessageId);
                 } else {
                     currentAssistantMessageId = null;
                     assistantMessageBuffer = '';
@@ -219,6 +255,10 @@
                 if (role === 'assistant') {
                     currentAssistantMessageId = `assistant-${Date.now()}`;
                     messageDiv.id = currentAssistantMessageId;
+                    if (withSpinner) {
+                        const spinner = createSpinner();
+                        messageDiv.appendChild(spinner);
+                    }
                 }
                 const contentDiv = document.createElement('div');
                 contentDiv.classList.add('message-content');
