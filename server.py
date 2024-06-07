@@ -22,7 +22,7 @@ parser.add_argument('--model', action='store', default="meta-llama/Meta-Llama-3-
 parser.add_argument('--port', action='store', default=8000)
 parser.add_argument('--image_generation', action='store_true', default=False)
 parser.add_argument('--image_model', action='store', default="sd-community/sdxl-flash")
-parser.add_argument('--image_cpu_offload', action='store_true', default=True)
+parser.add_argument('--image_cpu_offload', action='store_true', default=False)
 args = parser.parse_args()
 
 bnb_config = BitsAndBytesConfig(
@@ -132,15 +132,7 @@ async def generate_image(session_id: int, prompt: str, db: DBSession):
     db.refresh(image_db)
 
     # Create an image URL
-    image_url = f'<img class="scaled" src="http://<host>:<port>/image/{image_db.id}" alt="{prompt}" />'
-
-    session = session_manager.get_session(session_id, db)
-    session.add_image_reference(image_db.id)
-    db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
-    db_session.messages = str(session.messages)
-    db.add(db_session)
-    db.commit()
-    
+    image_url = f'<img class="scaled" src="http://<host>:<port>/image/{image_db.id}" alt="{prompt}" />'    
     return image_url
 
 @app.websocket("/stream/{session_id}")
@@ -155,17 +147,11 @@ async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(
         image_tag = await generate_image(session_id, prompt, db)
         await websocket.send_text(image_tag)
         session.add_assistant_message(image_tag)
-        db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
-        db_session.messages = str(session.messages)
-        db.add(db_session)
-        db.commit()
+        session_manager.save_session(session, db)                    
         await asyncio.sleep(0.01)
     else:
         session.add_user_message(message)
-        db_session = db.query(SessionDB).filter(SessionDB.id == session.id).first()
-        db_session.messages = str(session.messages)
-        db.add(db_session)
-        db.commit()
+        session_manager.save_session(session, db)            
         prompt = make_prompt(session)
         completion = ""
         try:
@@ -179,9 +165,7 @@ async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(
             print(f"Error: {e}")
         finally:
             session.add_assistant_message(completion)
-            db_session.messages = str(session.messages)
-            db.add(db_session)
-            db.commit()
+            session_manager.save_session(session, db)            
             await websocket.close()
 
 

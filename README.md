@@ -28,7 +28,7 @@ Run any text-generation model from huggingface
     docker run --gpus all -e HUGGINGFACE_TOKEN=<token> -d -p 8000:8000 turbo-genius
 
 ### Run in terminal
-    python server.py --model <model> --image_generation
+    python server.py --model <model> --image_generation --image_cpu_offload
 
 ## Clients
 
