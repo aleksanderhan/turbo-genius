@@ -43,9 +43,6 @@ class Session:
     def add_assistant_message(self, message):
         self.messages.append({"role": "assistant", "content": message})
 
-    def add_image_reference(self, image_id):
-        self.messages.append({"role": "image", "content": image_id})
-
     def get_messages(self):
         return [{"role": message["role"], "content": message["content"]} for message in self.messages if message["role"] != "image"]
     
@@ -54,13 +51,12 @@ class Session:
 
 class SessionManager:
     def __init__(self):
-        self.sessions = {}
+        pass
 
     def get_session(self, session_id, db):
         session_db = db.query(SessionDB).filter(SessionDB.id == session_id).first()
         if session_db:
             session = Session(session_db.id, session_db.title, eval(session_db.messages))
-            self.sessions[session_id] = session
             return session
         else:
             raise KeyError(f"Session {session_id} not found")
@@ -74,7 +70,6 @@ class SessionManager:
         db.commit()
         db.refresh(session_db)  # Refresh to get the auto-generated ID
         session = Session(session_db.id)
-        self.sessions[session_db.id] = session
         return session
 
     def remove_session(self, session_id, db):
@@ -82,6 +77,11 @@ class SessionManager:
         if session_db:
             db.delete(session_db)
             db.commit()
-        if session_id in self.sessions:
-            del self.sessions[session_id]
+
+    def save_session(self, session, db):
+        session_db = db.query(SessionDB).filter(SessionDB.id == session.id).first()
+        if session_db:
+            session_db.messages = str(session.messages)
+            db.add(session_db)
+            db.commit()
 
