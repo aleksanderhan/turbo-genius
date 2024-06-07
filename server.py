@@ -20,8 +20,9 @@ session_manager = SessionManager()
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', action='store', default="meta-llama/Meta-Llama-3-8B-Instruct")
 parser.add_argument('--port', action='store', default=8000)
-parser.add_argument('--image_capabilities', action='store_true', default=False)
-parser.add_argument('--image_cpu_offload', action='store_true', default=False)
+parser.add_argument('--image_generation', action='store_true', default=False)
+parser.add_argument('--image_model', action='store', default="sd-community/sdxl-flash")
+parser.add_argument('--image_cpu_offload', action='store_true', default=True)
 args = parser.parse_args()
 
 bnb_config = BitsAndBytesConfig(
@@ -54,16 +55,14 @@ summarizer = pipeline(
     top_p=0.9,
 )
 
-
-if args.image_capabilities:
-    sdxl_pipe = StableDiffusionXLPipeline.from_pretrained("sd-community/sdxl-flash", torch_dtype=torch.float16)
+if args.image_generation:
+    sdxl_pipe = StableDiffusionXLPipeline.from_pretrained(args.image_model, torch_dtype=torch.float16)
     sdxl_pipe.scheduler = DPMSolverSinglestepScheduler.from_config(sdxl_pipe.scheduler.config, timestep_spacing="trailing")
     sdxl_pipe.vae = AutoencoderTiny.from_pretrained("madebyollin/taesdxl", torch_dtype=torch.float16)
     sdxl_pipe.enable_vae_tiling()
     sdxl_pipe.enable_vae_slicing()
     if args.image_cpu_offload:
         sdxl_pipe.enable_sequential_cpu_offload()
-
 
 async def stream_tokens(streamer: TextIteratorStreamer):
     for token in streamer:

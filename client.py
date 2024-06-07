@@ -42,7 +42,6 @@ class ChatApp:
 
     def send_to_webview(self, role, message):
         sanitized_message = json.dumps(message)
-        print(sanitized_message)
         window.evaluate_js(f'addMessage("{role}", {sanitized_message})')
 
     def send_message(self, message):
