@@ -23,13 +23,15 @@ parser.add_argument('--port', action='store', default=8000)
 parser.add_argument('--image_generation', action='store_true', default=False)
 parser.add_argument('--image_model', action='store', default="sd-community/sdxl-flash")
 parser.add_argument('--image_cpu_offload', action='store_true', default=False)
+parser.add_argument('--llm_cpu_offload', action='store_true', default=False)
 args = parser.parse_args()
 
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_use_double_quant=True,
     bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.bfloat16
+    bnb_4bit_compute_dtype=torch.bfloat16,
+    llm_int8_enable_fp32_cpu_offload=args.llm_cpu_offload
 )
 config = AutoConfig.from_pretrained(args.model)
 model = AutoModelForCausalLM.from_pretrained(
