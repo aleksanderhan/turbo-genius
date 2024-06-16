@@ -14,6 +14,38 @@ class ChatApp:
         self.port = port
         self.session_id = None
         self.session_titles = {}
+        self.config_file = "config.json"
+        self.load_config()
+
+    def load_config(self):
+        try:
+            with open(self.config_file, 'r') as file:
+                config = json.load(file)
+                self.host = config.get("host", self.host)
+                self.port = config.get("port", self.port)
+        except FileNotFoundError:
+            pass
+
+    def save_config(self, config):
+        response = {"success": False}
+        try:
+            with open(self.config_file, 'w') as file:
+                json.dump(config, file)
+            self.host = config.get("host", self.host)
+            self.port = config.get("port", self.port)
+            response["success"] = True
+        except Exception as e:
+            traceback.print_exc()
+        return response
+
+    def get_config(self):
+        return {"host": self.host, "port": self.port}
+
+    def get_api(self):
+        return {
+            "save_config": self.save_config,
+            "get_config": self.get_config
+        }
 
     async def stream_tokens(self, uri, prompt):
         try:

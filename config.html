@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Configuration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #config-form {
+            margin: 20px;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h3>Configuration</h3>
+    <form id="config-form">
+        <label for="host-input">Host:</label>
+        <input type="text" id="host-input" name="host" value="">
+        <label for="port-input">Port:</label>
+        <input type="text" id="port-input" name="port" value="">
+        <button type="button" onclick="saveConfig()">Save</button>
+    </form>
+    <script>
+        function loadConfig() {
+            window.pywebview.api.get_config().then(config => {
+                document.getElementById('host-input').value = config.host;
+                document.getElementById('port-input').value = config.port;
+            });
+        }
+
+        function saveConfig() {
+            const host = document.getElementById('host-input').value;
+            const port = document.getElementById('port-input').value;
+
+            window.pywebview.api.save_config({ host, port }).then(response => {
+                if (response.success) {
+                    alert("Configuration saved successfully.");
+                } else {
+                    alert("Failed to save configuration.");
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', loadConfig);
+    </script>
+</body>
+</html>

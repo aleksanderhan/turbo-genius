@@ -1,3 +1,7 @@
+from llms import load_huggingface_pipeline, load_with_llama_cpp
+from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler
+from langchain_core.prompts import PromptTemplate
+
 import torch
 import flash_attn
 import uvicorn
@@ -26,116 +30,106 @@ parser.add_argument('--image_cpu_offload', action='store_true', default=False)
 parser.add_argument('--llm_cpu_offload', action='store_true', default=False)
 args = parser.parse_args()
 
-bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_use_double_quant=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.bfloat16,
-    llm_int8_enable_fp32_cpu_offload=args.llm_cpu_offload
-)
-config = AutoConfig.from_pretrained(args.model)
-model = AutoModelForCausalLM.from_pretrained(
-    args.model,
-    device_map='auto',
-    config=config,
-    quantization_config=bnb_config,
-    attn_implementation="flash_attention_2"
-)
-tokenizer = AutoTokenizer.from_pretrained(args.model)
-terminators = [
-    tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids(""),
-]
+template = """Question: {question}
 
-summarizer = pipeline(
-    task="summarization", 
-    model="facebook/bart-large-cnn", 
-    min_length=2, 
-    max_length=10,
-    do_sample=True,
-    temperature=0.6,
-    top_p=0.9,
-)
+Answer: Let's work this out in a step by step way to be sure we have the right answer."""
 
-if args.image_generation:
-    sdxl_pipe = StableDiffusionXLPipeline.from_pretrained(args.image_model, torch_dtype=torch.float16)
-    sdxl_pipe.scheduler = DPMSolverSinglestepScheduler.from_config(sdxl_pipe.scheduler.config, timestep_spacing="trailing")
-    sdxl_pipe.vae = AutoencoderTiny.from_pretrained("madebyollin/taesdxl", torch_dtype=torch.float16)
-    sdxl_pipe.enable_vae_tiling()
-    sdxl_pipe.enable_vae_slicing()
-    if args.image_cpu_offload:
-        sdxl_pipe.enable_sequential_cpu_offload()
+prompt = PromptTemplate.from_template(template)
 
-async def stream_tokens(streamer: TextIteratorStreamer):
-    for token in streamer:
-        yield token
-    yield None
+# Callbacks support token-wise streaming
+callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
 
-async def generate_response(prompt: str):
-    torch.cuda.empty_cache()
-    gc.collect()
-    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
-    generation_kwargs = {
-        "input_ids": inputs["input_ids"],
-        "attention_mask": inputs["attention_mask"],
-        "streamer": streamer,
-        "do_sample": True,
-        "temperature": 0.6,
-        "top_p": 0.9,
-        "max_length": config.max_position_embeddings,
-    }
+model_gguf="./models/Mistral-7B-Instruct-v0.3.Q6_K.gguf"
+model_hf="mistralai/Mistral-7B-Instruct-v0.3"
 
-    # Run the generation in a separate thread
-    thread = Thread(target=model.generate, kwargs=generation_kwargs)
-    thread.start()
 
-    # Start streaming tokens
-    async for token in stream_tokens(streamer):
-        yield token
+llm = load_with_llama_cpp(model_gguf, callback_manager)
+#llm = load_huggingface_pipeline(model_hf, callback_manager)
 
-    thread.join()
+llm_chain = prompt | llm
+question = "What NFL team won the Super Bowl in the year Justin Bieber was born?"
+for chunk in llm_chain.stream({"question": question}):
+    print(chunk, end="", flush=True)
 
-def make_title(session: Session):
-    messages = session.get_messages()[-2:]
-    prompt = "\n".join([message["content"] for message in messages])
-    return summarizer(prompt)
 
-def make_prompt(session: Session):
-    inputs = tokenizer.apply_chat_template(
-        session.get_messages(),
-        add_generation_prompt=True,
-        return_tensors="pt",
-        tokenize=True
-    )
-    num_tokens = inputs.shape[-1]
-    if num_tokens > int(config.max_position_embeddings * 0.9):
-        session.truncate_messages()
-        return make_prompt(session)
-    else:
-        return tokenizer.apply_chat_template(
+
+'''
+
+class Agent:
+
+    def __init__(self, llm):
+        self.model = llm
+
+    async def stream_tokens(streamer: TextIteratorStreamer):
+        for token in streamer:
+            yield token
+        yield None
+
+    async def generate_response(prompt: str):
+        torch.cuda.empty_cache()
+        gc.collect()
+        inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+        streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
+        generation_kwargs = {
+            "input_ids": inputs["input_ids"],
+            "attention_mask": inputs["attention_mask"],
+            "streamer": streamer,
+            "do_sample": True,
+            "temperature": 0.6,
+            "top_p": 0.9,
+            "max_length": config.max_position_embeddings,
+        }
+
+        # Run the generation in a separate thread
+        thread = Thread(target=model.generate, kwargs=generation_kwargs)
+        thread.start()
+
+        # Start streaming tokens
+        async for token in stream_tokens(streamer):
+            yield token
+
+        thread.join()
+
+    def make_title(session: Session):
+        messages = session.get_messages()[-2:]
+        prompt = "\n".join([message["content"] for message in messages])
+        return summarizer(prompt)
+
+    def make_prompt(session: Session):
+        inputs = tokenizer.apply_chat_template(
             session.get_messages(),
             add_generation_prompt=True,
-            tokenize=False
+            return_tensors="pt",
+            tokenize=True
         )
+        num_tokens = inputs.shape[-1]
+        if num_tokens > int(config.max_position_embeddings * 0.9):
+            session.truncate_messages()
+            return make_prompt(session)
+        else:
+            return tokenizer.apply_chat_template(
+                session.get_messages(),
+                add_generation_prompt=True,
+                tokenize=False
+            )
 
-def generate_image(session_id: int, prompt: str, db: DBSession):
-    torch.cuda.empty_cache()
-    gc.collect()
-    image = sdxl_pipe(prompt, num_inference_steps=6, guidance_scale=3).images[0]
-    img_byte_arr = io.BytesIO()
-    image.save(img_byte_arr, format='PNG')
-    img_byte_arr = img_byte_arr.getvalue()
+    def generate_image(session_id: int, prompt: str, db: DBSession):
+        torch.cuda.empty_cache()
+        gc.collect()
+        image = sdxl_pipe(prompt, num_inference_steps=6, guidance_scale=3).images[0]
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        img_byte_arr = img_byte_arr.getvalue()
 
-    # Save the image to the database
-    image_db = SessionImageDB(session_id=session_id, image=img_byte_arr)
-    db.add(image_db)
-    db.commit()
-    db.refresh(image_db)
+        # Save the image to the database
+        image_db = SessionImageDB(session_id=session_id, image=img_byte_arr)
+        db.add(image_db)
+        db.commit()
+        db.refresh(image_db)
 
-    # Create an image URL
-    image_url = f'<img class="scaled" src="http://<host>:<port>/image/{image_db.id}" alt="{prompt}" />'    
-    return image_url
+        # Create an image URL
+        image_url = f'<img class="scaled" src="http://<host>:<port>/image/{image_db.id}" alt="{prompt}" />'    
+        return image_url
 
 @app.websocket("/stream/{session_id}")
 async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(get_db)):
@@ -213,3 +207,6 @@ async def get_image(image_id: int, db: DBSession = Depends(get_db)):
 
 if __name__ == "__main__":        
     uvicorn.run(app, host="0.0.0.0", port=args.port)
+
+    
+'''
