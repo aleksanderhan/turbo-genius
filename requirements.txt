@@ -10,3 +10,5 @@ termcolor
 pygments
 sqlalchemy
 diffusers
+langchain
+langchain_community

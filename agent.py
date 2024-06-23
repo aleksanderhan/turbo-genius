@@ -1,6 +1,7 @@
-from llms import load_huggingface_pipeline, load_with_llama_cpp
+from llms import load_huggingface_pipeline, load_with_llama_cpp, load_with_vllm
 from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler
 from langchain_core.prompts import PromptTemplate
+from langchain_core.tools import tool
 
 import torch
 import flash_attn
@@ -22,7 +23,9 @@ app = FastAPI()
 session_manager = SessionManager()
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', action='store', default="meta-llama/Meta-Llama-3-8B-Instruct")
+parser.add_argument('--repo', action='store', default="mistralai/Mistral-7B-Instruct-v0.3")
+parser.add_argument('--file', action='store', default=None)
+parser.add_argument('--awq', action='store_true', default=False)
 parser.add_argument('--port', action='store', default=8000)
 parser.add_argument('--image_generation', action='store_true', default=False)
 parser.add_argument('--image_model', action='store', default="sd-community/sdxl-flash")
@@ -30,106 +33,82 @@ parser.add_argument('--image_cpu_offload', action='store_true', default=False)
 parser.add_argument('--llm_cpu_offload', action='store_true', default=False)
 args = parser.parse_args()
 
-template = """Question: {question}
-
-Answer: Let's work this out in a step by step way to be sure we have the right answer."""
-
-prompt = PromptTemplate.from_template(template)
-
-# Callbacks support token-wise streaming
-callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
-
-model_gguf="./models/Mistral-7B-Instruct-v0.3.Q6_K.gguf"
-model_hf="mistralai/Mistral-7B-Instruct-v0.3"
 
 
-llm = load_with_llama_cpp(model_gguf, callback_manager)
-#llm = load_huggingface_pipeline(model_hf, callback_manager)
+if args.file is not None and args.file.endswith(".gguf"):
+    llm = load_with_llama_cpp(args.repo, args.file)
+elif args.awq:
+    llm = load_with_vllm(args.repo)
+else:
+    llm = load_huggingface_pipeline(args.repo)
 
-llm_chain = prompt | llm
+
 question = "What NFL team won the Super Bowl in the year Justin Bieber was born?"
-for chunk in llm_chain.stream({"question": question}):
-    print(chunk, end="", flush=True)
+
+summarizer = pipeline(
+    task="summarization", 
+    model="facebook/bart-large-cnn", 
+    min_length=2, 
+    max_length=10,
+    do_sample=True,
+    temperature=0.6,
+    top_p=0.9,
+)
+
+if args.image_generation:
+    sdxl_pipe = StableDiffusionXLPipeline.from_pretrained(args.image_model, torch_dtype=torch.float16)
+    sdxl_pipe.scheduler = DPMSolverSinglestepScheduler.from_config(sdxl_pipe.scheduler.config, timestep_spacing="trailing")
+    sdxl_pipe.vae = AutoencoderTiny.from_pretrained("madebyollin/taesdxl", torch_dtype=torch.float16)
+    sdxl_pipe.enable_vae_tiling()
+    sdxl_pipe.enable_vae_slicing()
+    if args.image_cpu_offload:
+        sdxl_pipe.enable_sequential_cpu_offload()
 
 
 
-'''
+async def generate_response(message: str, session: Session):
+    template = """You have access to tools that you can use to comply with the user requests.
+    
+### Conversation history so far:
+{history}
+    
+### User request:
+{request}
 
-class Agent:
+### Assistant response:
+"""
+    
+    prompt = PromptTemplate.from_template(template)
+    llm_chain = prompt | llm
+    async for chunk in llm_chain.astream({"history": make_history(session), "request": message}):
+        yield chunk
 
-    def __init__(self, llm):
-        self.model = llm
+def make_history(session: Session):
+    messages = session.get_messages()
+    return "\n".join([message['role'] + "\n" + message["content"] + "\n\n" for message in messages])
 
-    async def stream_tokens(streamer: TextIteratorStreamer):
-        for token in streamer:
-            yield token
-        yield None
+def make_title(session: Session):
+    messages = session.get_messages()[-2:]
+    prompt = "\n".join([message["content"] for message in messages])
+    return summarizer(prompt)
 
-    async def generate_response(prompt: str):
-        torch.cuda.empty_cache()
-        gc.collect()
-        inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-        streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True) 
-        generation_kwargs = {
-            "input_ids": inputs["input_ids"],
-            "attention_mask": inputs["attention_mask"],
-            "streamer": streamer,
-            "do_sample": True,
-            "temperature": 0.6,
-            "top_p": 0.9,
-            "max_length": config.max_position_embeddings,
-        }
+def generate_image(session_id: int, prompt: str, db: DBSession):
+    torch.cuda.empty_cache()
+    gc.collect()
+    image = sdxl_pipe(prompt, num_inference_steps=6, guidance_scale=3).images[0]
+    img_byte_arr = io.BytesIO()
+    image.save(img_byte_arr, format='PNG')
+    img_byte_arr = img_byte_arr.getvalue()
 
-        # Run the generation in a separate thread
-        thread = Thread(target=model.generate, kwargs=generation_kwargs)
-        thread.start()
+    # Save the image to the database
+    image_db = SessionImageDB(session_id=session_id, image=img_byte_arr)
+    db.add(image_db)
+    db.commit()
+    db.refresh(image_db)
 
-        # Start streaming tokens
-        async for token in stream_tokens(streamer):
-            yield token
-
-        thread.join()
-
-    def make_title(session: Session):
-        messages = session.get_messages()[-2:]
-        prompt = "\n".join([message["content"] for message in messages])
-        return summarizer(prompt)
-
-    def make_prompt(session: Session):
-        inputs = tokenizer.apply_chat_template(
-            session.get_messages(),
-            add_generation_prompt=True,
-            return_tensors="pt",
-            tokenize=True
-        )
-        num_tokens = inputs.shape[-1]
-        if num_tokens > int(config.max_position_embeddings * 0.9):
-            session.truncate_messages()
-            return make_prompt(session)
-        else:
-            return tokenizer.apply_chat_template(
-                session.get_messages(),
-                add_generation_prompt=True,
-                tokenize=False
-            )
-
-    def generate_image(session_id: int, prompt: str, db: DBSession):
-        torch.cuda.empty_cache()
-        gc.collect()
-        image = sdxl_pipe(prompt, num_inference_steps=6, guidance_scale=3).images[0]
-        img_byte_arr = io.BytesIO()
-        image.save(img_byte_arr, format='PNG')
-        img_byte_arr = img_byte_arr.getvalue()
-
-        # Save the image to the database
-        image_db = SessionImageDB(session_id=session_id, image=img_byte_arr)
-        db.add(image_db)
-        db.commit()
-        db.refresh(image_db)
-
-        # Create an image URL
-        image_url = f'<img class="scaled" src="http://<host>:<port>/image/{image_db.id}" alt="{prompt}" />'    
-        return image_url
+    # Create an image URL
+    image_url = f'<img class="scaled" src="http://<host>:<port>/image/{image_db.id}" alt="{prompt}" />'    
+    return image_url
 
 @app.websocket("/stream/{session_id}")
 async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(get_db)):
@@ -146,12 +125,9 @@ async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(
         session.add_assistant_message(image_tag)
         session_manager.save_session(session, db)                    
     else:
-        session.add_user_message(message)
-        session_manager.save_session(session, db)            
-        prompt = make_prompt(session)
         completion = ""
         try:
-            async for token in generate_response(prompt):
+            async for token in generate_response(message, session):
                 if token is None:
                     break
                 completion += token
@@ -160,6 +136,7 @@ async def stream(websocket: WebSocket, session_id: int, db: DBSession = Depends(
         except Exception as e:
             print(f"Error: {e}")
         finally:
+            session.add_user_message(message)
             session.add_assistant_message(completion)
             session_manager.save_session(session, db)            
             await websocket.close()
@@ -208,5 +185,3 @@ async def get_image(image_id: int, db: DBSession = Depends(get_db)):
 if __name__ == "__main__":        
     uvicorn.run(app, host="0.0.0.0", port=args.port)
 
-    
-'''
