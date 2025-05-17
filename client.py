@@ -3,10 +3,14 @@ import threading
 import time
 import websockets
 import traceback
-import webview
 import requests
 import json
 import re
+import webview
+
+
+END_REASONING = "</think>"
+
 
 class ChatApp:
     def __init__(self, host, port):
@@ -136,6 +140,13 @@ if __name__ == "__main__":
 
     app = ChatApp(args.host, args.port)
 
-    window = webview.create_window("Turbo-Genius Chat", "index.html", js_api=app, text_select=True)
-    webview.start(app.initialize, debug=args.debug)
+    window = webview.create_window(
+        "Turbo-Genius Chat", 
+        "index.html", 
+        js_api=app, 
+        text_select=True,
+        width=1200,
+        height=1000,
+    )
+    webview.start(app.initialize, debug=args.debug, gui='qt')
 

@@ -43,6 +43,9 @@ class Session:
     def add_assistant_message(self, message):
         self.messages.append({"role": "assistant", "content": message})
 
+    def add_system_message(self, message):
+        self.messages.append({"role": "system", "content": message})
+
     def get_messages(self):
         return [{"role": message["role"], "content": message["content"]} for message in self.messages if message["role"] != "image"]
     
@@ -64,12 +67,14 @@ class SessionManager:
     def get_session_list(self, db):
         return [{"id": session.id, "title": session.title} for session in db.query(SessionDB).all()]
 
-    def get_new_session(self, db):
-        session_db = SessionDB(messages='[]')
+    def get_new_session(self, db, system_message):
+        session_db = SessionDB(messages="[{'role': 'system', 'content': '" + system_message + "'}]")
         db.add(session_db)
         db.commit()
         db.refresh(session_db)  # Refresh to get the auto-generated ID
-        session = Session(session_db.id)
+        session = self.get_session(session_db.id, db)
+        #session.add_system_message(system_message)
+        #self.save_session(session, db)
         return session
 
     def remove_session(self, session_id, db):

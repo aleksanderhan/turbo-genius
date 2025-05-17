@@ -1,12 +1,15 @@
+numpy
 transformers
+huggingface_hub
 datasets
 accelerate
 bitsandbytes
-flash-attn
+flashinfer-python
+websockets
 fastapi
 uvicorn
-huggingface_hub
 termcolor
 pygments
 sqlalchemy
 diffusers
+pywebview
