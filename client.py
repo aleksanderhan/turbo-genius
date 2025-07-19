@@ -24,9 +24,6 @@ class ChatApp:
                 try:
                     while True:
                         token = await websocket.recv()
-                        img_tag_pattern = r'<img\b[^>]*>'
-                        if re.search(img_tag_pattern, token):
-                            token = token.replace("<host>", self.host).replace("<port>", str(self.port))
                         self.send_to_webview("assistant", token)
                         num_token += 1
                 except websockets.exceptions.ConnectionClosed:
@@ -83,9 +80,6 @@ class ChatApp:
                 chat_data = response.json()
                 for message in chat_data["messages"]:
                     if message["role"] == "user" or message["role"] == "assistant":
-                        img_tag_pattern = r'<img\b[^>]*>'
-                        if re.search(img_tag_pattern, message["content"]):
-                            message["content"] = message["content"].replace("<host>", self.host).replace("<port>", str(self.port))
                         self.send_to_webview(message["role"], message["content"])
                 self.session_id = session_id
             except Exception as e:

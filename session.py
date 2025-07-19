@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, LargeBinary, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 
@@ -15,12 +15,6 @@ class SessionDB(Base):
     messages = Column(Text, nullable=True)
     images = relationship("SessionImageDB", back_populates="session")  # New relationship
 
-class SessionImageDB(Base):
-    __tablename__ = "session_images"
-    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    session_id = Column(Integer, ForeignKey("sessions.id"))
-    image = Column(LargeBinary, nullable=False)
-    session = relationship("SessionDB", back_populates="images")
 
 Base.metadata.create_all(bind=engine)
 
