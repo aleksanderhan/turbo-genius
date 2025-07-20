@@ -114,7 +114,8 @@ def make_prompt(session: Session):
         session.get_messages(),
         add_generation_prompt=True,
         return_tensors="pt",
-        tokenize=True
+        tokenize=True,
+        enable_thinking=False
     )
     num_tokens = inputs.shape[-1]
     if num_tokens > int(config.max_position_embeddings * 0.9):
