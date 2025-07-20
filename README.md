@@ -12,7 +12,11 @@ Streaming local llm server and client.
 ![Image capabilities](assets/image_capability.png)
 
 ## Dependencies
+    sudo apt install nvidia-cuda-toolkit
     sudo apt-get install sqlite3 libsqlite3-dev
+
+    # Create a conda env with
+    bash 00_create_env.sh
 
     # for whatever reason these modules have to be installed separately
     pip install packaging torch
@@ -32,7 +36,7 @@ Run any text-generation model from huggingface
 
 ## Clients
 
-### Cli
+### Text based client
     python cli.py --host <host> --port <port>
 
 ### Chat client desktop app

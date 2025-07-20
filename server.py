@@ -18,7 +18,7 @@ app = FastAPI()
 session_manager = SessionManager()
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', action='store', default="meta-llama/Meta-Llama-3-8B-Instruct")
+parser.add_argument('--model', action='store', default="Qwen/Qwen3-8B")
 parser.add_argument('--port', action='store', default=8000)
 parser.add_argument('--image_generation', action='store_true', default=False)
 parser.add_argument('--image_model', action='store', default="sd-community/sdxl-flash")
@@ -38,7 +38,8 @@ model = AutoModelForCausalLM.from_pretrained(
     config=config,
     quantization_config=bnb_config,
     attn_implementation="flash_attention_2"
-)
+).eval()
+
 tokenizer = AutoTokenizer.from_pretrained(args.model)
 terminators = [
     tokenizer.eos_token_id,

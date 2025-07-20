@@ -1,0 +1,156 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    height: 100vh;
+}
+#sidebar {
+    width: 200px;
+    background-color: #333;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+#sidebar h2 {
+    margin: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #444;
+    text-align: center;
+}
+#session-list {
+    list-style: none;
+    padding: 0;
+    flex: 1;
+    overflow-y: auto;
+}
+#session-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    cursor: pointer;
+    position: relative;
+}
+#session-list li:hover {
+    background-color: #444;
+}
+.session-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.dropdown {
+    cursor: pointer;
+    position: relative;
+}
+.dropdown-content {
+    display: none;
+    position: absolute;
+    right: 10px;
+    background-color: #444;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1;
+    width: 160px; /* Adjust width to fit the button text */
+}
+.dropdown-content button {
+    color: white;
+    padding: 10px 16px;
+    text-decoration: none;
+    display: block;
+    width: 100%;
+    border: none;
+    background: none;
+    text-align: left;
+    white-space: nowrap; /* Prevent text wrapping */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dropdown-content button:hover {
+    background-color: #555;
+}
+#main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+#session-title-bar {
+    background-color: #333;
+    color: white;
+    height: 50px;
+}
+#chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    background-color: #f5f5f5;
+}
+#input-area {
+    display: flex;
+    padding: 10px;
+    background-color: #ddd;
+}
+#message-input {
+    flex: 1;
+    padding: 10px;
+    font-size: 16px;
+}
+#send-button {
+    padding: 10px 20px;
+    font-size: 16px;
+}
+.message {
+    padding: 10px;
+    margin: 5px 0;
+    border-radius: 5px;
+    word-wrap: break-word;
+    user-select: text;
+}
+.user {
+    background-color: #d1e7dd;
+    align-self: flex-end;
+}
+.assistant {
+    background-color: #fff3cd;
+    align-self: flex-start;
+}
+.message-content {
+    white-space: pre-wrap;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    background-color: transparent;
+    border: none;
+    user-select: text;
+}
+pre {
+    background: #f5f2f0;
+    padding: 10px;
+    border-radius: 5px;
+    overflow: auto;
+}
+code {
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+img.scaled {
+    max-width: 100%;
+    height: auto;
+}
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border-left-color: #333;
+    margin: 10px auto;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
