@@ -53,6 +53,7 @@ summarizer = pipeline(
     do_sample=True,
     temperature=0.6,
     top_p=0.9,
+    device="cpu"
 )
 
 if args.image_generation:
