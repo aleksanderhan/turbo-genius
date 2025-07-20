@@ -13,8 +13,12 @@ bnb_config = BitsAndBytesConfig(
     bnb_4bit_compute_dtype=torch.bfloat16,
 )
 model = AutoModelForCausalLM.from_pretrained(
-    model_name, quantization_config=bnb_config, device_map="cuda", attn_implementation="flash_attention_2", torch_dtype=torch.float16
-)
+    model_name, 
+    quantization_config=bnb_config, 
+    device_map="cuda", 
+    #attn_implementation="flash_attention_2", 
+    torch_dtype=torch.float16
+).eval()
 
 def format_instruction(instruction, query, doc):
     if instruction is None:
@@ -68,10 +72,12 @@ documents = [
 
 pairs = [format_instruction(task, query, doc) for query, doc in zip(queries, documents)]
 
+import time
+t0 = time.time()
 # Tokenize the input texts
 inputs = process_inputs(pairs)
 scores = compute_logits(inputs)
 
 print("scores: ", scores)
-
+print("Time elapsed: {:.2f} seconds".format(time.time() - t0))
 
