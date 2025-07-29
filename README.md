@@ -28,6 +28,8 @@ Streaming local llm server and client.
 Run any text-generation model from huggingface
 
 - Run in terminal
+
     python app.py --model <model> --image_generation --image_cpu_offload
+
 - Open http://localhost:8000 in a browser
 

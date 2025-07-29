@@ -67,7 +67,7 @@ class SessionManager:
     def get_session_list(self, db):
         return [{"id": session.id, "title": session.title} for session in db.query(SessionDB).all()]
 
-    def get_new_session(self, db, system_message):
+    def get_new_session(self, db, system_message="you are an helpfull assistant."):
         session_db = SessionDB(messages="[{'role': 'system', 'content': '" + system_message + "'}]")
         db.add(session_db)
         db.commit()
