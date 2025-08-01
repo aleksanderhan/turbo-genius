@@ -37,9 +37,9 @@ app = FastAPI()
 session_manager = SessionManager()
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model_repo', action='store', default="unsloth/Qwen3-30B-A3B-128K-GGUF")
-parser.add_argument('--model_filename', action='store', default="Qwen3-30B-A3B-128K-Q5_K_M.gguf")
-parser.add_argument('--tokenizer_repo', action='store', default="Qwen/Qwen3-30B-A3B")
+parser.add_argument('--model_repo', action='store', default="unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF")
+parser.add_argument('--model_filename', action='store', default="Qwen3-30B-A3B-Instruct-2507-GGUF")
+parser.add_argument('--tokenizer_repo', action='store', default="Qwen/Qwen3-30B-A3B-Instruct-2507")
 parser.add_argument('--optimize_config', action='store', default='./qwen3moe_optimize.yaml')
 parser.add_argument('--port', action='store', default=8000)
 parser.add_argument('--image_generation', action='store_true', default=False)
@@ -62,24 +62,7 @@ except Exception as e:
     sys.exit(0)
 
 
-model_config = Qwen3MoeConfig.from_pretrained(args.model_repo)
-print(model_config)
 
-kconfig = Config()
-kconfig.load()
-print(kconfig)
-
-cache = StaticCache(model_config, max_batch_size=1, max_cache_len=8192, device="cuda")
-
-
-#with torch.device("meta"):
-#    model = Qwen3MoeForCausalLM(model_config, cache)
-#optimize_and_load_gguf(model, args.optimize_config, local_path, config)
-#print(model)
-
-create_interface(kconfig, kconfig)
-interface = get_interface()
-print(interface)
 
 tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_repo)
 terminators = [
