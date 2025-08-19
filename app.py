@@ -7,6 +7,8 @@ import argparse
 import io
 import json
 import re
+import sys
+import os
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import Response, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,6 +17,8 @@ from sqlalchemy.orm import Session as DBSession
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig, TextIteratorStreamer, pipeline
 from diffusers import StableDiffusionXLPipeline, DPMSolverSinglestepScheduler, AutoencoderTiny
 from typing import Dict
+from huggingface_hub import hf_hub_download
+
 
 from session import Session, SessionManager, SessionDB, SessionImageDB, get_db
 
@@ -26,34 +30,53 @@ web_connections: Dict[str, WebSocket] = {}
 
 # Parse arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', action='store', default="Qwen/Qwen3-8B")
+parser.add_argument('--model_repo', action='store', default="unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF")
+parser.add_argument('--model_filename', action='store', default="Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf")
+parser.add_argument('--tokenizer_repo', action='store', default="Qwen/Qwen3-30B-A3B-Instruct-2507")
 parser.add_argument('--port', action='store', default=8000)
 parser.add_argument('--image_generation', action='store_true', default=False)
 parser.add_argument('--image_model', action='store', default="sd-community/sdxl-flash")
 parser.add_argument('--image_cpu_offload', action='store_true', default=False)
 args = parser.parse_args()
 
-# Initialize AI models
-bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_use_double_quant=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.bfloat16
-)
-config = AutoConfig.from_pretrained(args.model)
-model = AutoModelForCausalLM.from_pretrained(
-    args.model,
-    device_map='auto',
-    config=config,
-    quantization_config=bnb_config,
-    attn_implementation="flash_attention_2"
-).eval()
 
-tokenizer = AutoTokenizer.from_pretrained(args.model)
+base_path = "./models/"
+
+try:
+    local_path = hf_hub_download(
+        repo_id=args.model_repo,
+        filename=args.model_filename,
+        local_dir=base_path,  # Optional: Specify a local directory to save the file
+        local_dir_use_symlinks=False,  # Recommended for avoiding potential issues
+        force_download=False,
+    )
+    print(f"GGUF file downloaded to: {local_path}")
+except Exception as e:
+    print(f"Error downloading file: {e}")
+    sys.exit(0)
+
+
+from llama_cpp import Llama
+
+config = AutoConfig.from_pretrained(args.tokenizer_repo)
+
+model = Llama(
+    model_path=base_path + args.model_filename,    
+    n_ctx=16384,
+    n_threads=os.cpu_count(),
+    n_batch=1,
+    n_gpu_layers=15,
+    verbose=True,
+)
+
+
+
+tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_repo)
 terminators = [
     tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids(""),
+    #tokenizer.convert_tokens_to_ids(""),
 ]
+
 
 summarizer = pipeline(
     task="summarization", 
@@ -382,7 +405,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 if __name__ == "__main__":        
     print(f"Starting unified AI chat server on port {args.port}")
     print(f"Web interface: http://localhost:{args.port}")
-    print(f"Model: {args.model}")
+    print(f"Model: {args.model_repo}")
     if args.image_generation:
         print(f"Image generation enabled with model: {args.image_model}")
     uvicorn.run(app, host="0.0.0.0", port=int(args.port))

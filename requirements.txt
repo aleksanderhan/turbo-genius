@@ -8,10 +8,8 @@ flashinfer-python
 websockets
 fastapi
 uvicorn
-termcolor
 pygments
 sqlalchemy
 diffusers
 websockets
-PyQt5
-pywebview[qt5]
+dearpygui

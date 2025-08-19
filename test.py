@@ -1,74 +1,58 @@
-from diffusers import StableDiffusionXLPipeline, DPMSolverSinglestepScheduler, AutoencoderTiny
-from diffusers.utils import make_image_grid
+import dearpygui.dearpygui as dpg
 
-from PIL import Image
-import torch
-import matplotlib.pyplot as plt
-import time
-from IPython.display import display, clear_output
-from typing import List, Callable, Optional, Union
+dpg.create_context()
+messages = []
 
-# Load the pipeline
-pipeline = StableDiffusionXLPipeline.from_pretrained(
-    "sd-community/sdxl-flash",
-    torch_dtype=torch.float16,
-    use_safetensors=True,
-    low_cpu_mem_usage=True
-)
-pipeline.vae = AutoencoderTiny.from_pretrained("madebyollin/taesdxl", torch_dtype=torch.float16)
+def add_message(role, text):
+    messages.append((role, text))
+    dpg.add_text(f"{role}: {text}", parent="chat_history")
+    dpg.set_y_scroll("chat_history", dpg.get_y_scroll_max("chat_history"))
 
-pipeline.enable_vae_tiling()
-pipeline.enable_vae_slicing()
-pipeline.enable_sequential_cpu_offload()
+def send_message():
+    user_input = dpg.get_value("input_box").strip()
+    if not user_input:
+        return
+    add_message("You", user_input)
+    dpg.set_value("input_box", "")
+    add_message("Bot", f"Echo: {user_input}")
 
-pipeline.scheduler = DPMSolverSinglestepScheduler.from_config(pipeline.scheduler.config, timestep_spacing="trailing")
-pipeline.set_progress_bar_config(disable=True)
+with dpg.window(tag="main_window", no_move=True, no_scrollbar=True):
+    dpg.add_child_window(tag="chat_history", border=True)
+    dpg.add_input_text(tag="input_box", on_enter=True, callback=lambda: send_message())
+    dpg.add_button(tag="send_btn", label="Send", callback=lambda: send_message())
 
-prompt = "Casino on the beach."
-num_inference_steps = 11
-guidance_scale = 7.0
-target_height = 1024
-target_width = 1024
+def resize_every_frame():
+    vp_w = dpg.get_viewport_width()
+    vp_h = dpg.get_viewport_height()
 
-# Initialize the plot outside the callback
-fig, ax = plt.subplots(figsize=(target_width/100, target_height/100), dpi=100)
-image_plot = None
+    margin = 10
+    btn_w = 80
+    row_h = 30
+    gap = 6
 
-def visualize_callback(i: int, t: int, latents: torch.Tensor) -> None:
-    global image_plot
-    image = pipeline.vae.decode(latents / pipeline.vae.scaling_factor, return_dict=False)[0]
-    image = (image / 2 + 0.5).clamp(0, 1).cpu().permute(0, 2, 3, 1).numpy()[0]
-    image = (image * 255).round().astype("uint8")
-    image = Image.fromarray(image)
+    # resize main window
+    dpg.configure_item("main_window", pos=(0, 0), width=vp_w, height=vp_h)
 
-    ax.set_title(f"Step {i+1}/{num_inference_steps}")
-    
-    clear_output(wait=True)
-    if image_plot is None:
-        image_plot = ax.imshow(image)
-        ax.axis('off')
-        plt.show(block=False)
-    else:
-        image_plot.set_data(image)
-        fig.canvas.draw()
-        fig.canvas.flush_events()
+    # position input row
+    input_w = vp_w - (btn_w + gap + margin * 2)
+    input_y = vp_h - margin - row_h
+    dpg.configure_item("input_box", pos=(margin, input_y), width=input_w, height=row_h)
+    dpg.configure_item("send_btn", pos=(margin + input_w + gap, input_y), width=btn_w, height=row_h)
 
-# Run the pipeline with the callback
-image = pipeline(
-    prompt=prompt,
-    height=target_height,
-    width=target_width,
-    num_inference_steps=num_inference_steps,
-    callback=visualize_callback,
-    callback_steps=1,
-    guidance_scale=guidance_scale,
-).images[0]
+    # position chat history
+    chat_h = input_y - margin
+    dpg.configure_item("chat_history", pos=(margin, margin), width=vp_w - margin * 2, height=chat_h)
 
+    # call again next frame
+    dpg.set_frame_callback(1, resize_every_frame)
 
-clear_output(wait=True)
-plt.imshow(image)
-plt.axis("off")
-plt.title(prompt)
-plt.show(block=True)
+dpg.create_viewport(title="Resizable Chat", width=800, height=600)
+dpg.setup_dearpygui()
+dpg.show_viewport()
 
-image.save(f"sd_{prompt}.png")
+resize_every_frame()
+add_message("Bot", "Welcome! Resize the window to see me stretch.")
+
+dpg.set_primary_window("main_window", True)
+dpg.start_dearpygui()
+dpg.destroy_context()

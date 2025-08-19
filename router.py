@@ -38,7 +38,7 @@ def process_inputs(pairs):
         inputs[key] = inputs[key].to(model.device)
     return inputs
 
-@torch.no_grad()
+@torch.inference_mode()
 def compute_logits(inputs, **kwargs):
     batch_scores = model(**inputs).logits[:, -1, :]
     true_vector = batch_scores[:, token_true_id]
