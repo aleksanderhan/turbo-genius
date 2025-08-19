@@ -137,5 +137,5 @@ if __name__ == "__main__":
     app = ChatApp(args.host, args.port)
 
     window = webview.create_window("Turbo-Genius Chat", "index.html", js_api=app, text_select=True)
-    webview.start(app.initialize, debug=args.debug)
+    webview.start(app.initialize, debug=args.debug, gui='qt')
 
