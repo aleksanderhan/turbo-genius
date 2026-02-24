@@ -1,12 +1,9 @@
-transformers
-datasets
-accelerate
-bitsandbytes
-flash-attn
+llama-cpp-python
 fastapi
 uvicorn
-huggingface_hub
 termcolor
 pygments
 sqlalchemy
-diffusers
+websockets
+requests
+pywebview

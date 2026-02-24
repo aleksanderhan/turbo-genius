@@ -1,28 +1,23 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, LargeBinary, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker
 
 # Database setup
-SQLALCHEMY_DATABASE_URL = "sqlite:///./sessions.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SQLALCHEMY_DATABASE_URL = 'sqlite:///./sessions.db'
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+
 class SessionDB(Base):
-    __tablename__ = "sessions"
+    __tablename__ = 'sessions'
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     title = Column(String, index=True, nullable=True)
     messages = Column(Text, nullable=True)
-    images = relationship("SessionImageDB", back_populates="session")  # New relationship
 
-class SessionImageDB(Base):
-    __tablename__ = "session_images"
-    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    session_id = Column(Integer, ForeignKey("sessions.id"))
-    image = Column(LargeBinary, nullable=False)
-    session = relationship("SessionDB", back_populates="images")
 
 Base.metadata.create_all(bind=engine)
+
 
 def get_db():
     db = SessionLocal()
@@ -31,6 +26,7 @@ def get_db():
     finally:
         db.close()
 
+
 class Session:
     def __init__(self, session_id=None, title=None, messages=None):
         self.id = session_id
@@ -38,16 +34,17 @@ class Session:
         self.messages = messages or []
 
     def add_user_message(self, message):
-        self.messages.append({"role": "user", "content": message})
+        self.messages.append({'role': 'user', 'content': message})
 
     def add_assistant_message(self, message):
-        self.messages.append({"role": "assistant", "content": message})
+        self.messages.append({'role': 'assistant', 'content': message})
 
     def get_messages(self):
-        return [{"role": message["role"], "content": message["content"]} for message in self.messages if message["role"] != "image"]
-    
+        return [{'role': message['role'], 'content': message['content']} for message in self.messages]
+
     def truncate_messages(self):
         self.messages = self.messages[2:]
+
 
 class SessionManager:
     def __init__(self):
@@ -59,16 +56,16 @@ class SessionManager:
             session = Session(session_db.id, session_db.title, eval(session_db.messages))
             return session
         else:
-            raise KeyError(f"Session {session_id} not found")
+            raise KeyError(f'Session {session_id} not found')
 
     def get_session_list(self, db):
-        return [{"id": session.id, "title": session.title} for session in db.query(SessionDB).all()]
+        return [{'id': session.id, 'title': session.title} for session in db.query(SessionDB).all()]
 
     def get_new_session(self, db):
         session_db = SessionDB(messages='[]')
         db.add(session_db)
         db.commit()
-        db.refresh(session_db)  # Refresh to get the auto-generated ID
+        db.refresh(session_db)
         session = Session(session_db.id)
         return session
 
@@ -84,4 +81,3 @@ class SessionManager:
             session_db.messages = str(session.messages)
             db.add(session_db)
             db.commit()
-
